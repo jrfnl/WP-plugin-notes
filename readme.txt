@@ -1,21 +1,22 @@
 === Plugin Notes ===
-Contributors: batmoo, jrf
+Contributors: jrf, batmoo
 Donate link: http://digitalize.ca/donate
 Tags: plugin, plugin notes, memo, meta, plugins, document, documentation
-Tested up to: 3.4.2
-Requires at least: 3.0
+Tested up to: 3.7.1
+Requires at least: 3.5
 Stable tag: 2.0
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-Allows you to add notes to plugins.
+Allows you to add notes to plugins and share these across installations.
 
 == Description ==
 
 Allows you to add one or more notes/memorandi to plugins.
 
-Extremely useful when you:
+This plugin will be very useful if you:
 * use lots of plugins and want to document which is used for what
+* want to keep login details for external sites used by plugins handy (think: Jetpack)
 * make modifications to a plugin and want to make a note of them
 * found a bug in a plugin and want to link to your bug report
 * work on your WordPress install with a group of people
@@ -23,24 +24,42 @@ Extremely useful when you:
 * work on several wordpress installs and want to easily synchronize your plugin documentation between installs
 
 = Features =
-* Add/edit/delete notes for each plugin on the plugin page
-* Multiple notes per plugin _(since v2.0)_
-* You can use HTML in notes _(since v1.1)_
-* You can use [markdown syntax](http://daringfireball.net/projects/markdown/syntax) in notes _(since v1.5)_
-* You can use a number of variables which will be automagically replaced when the note displays _(since v1.5)_
-* Save a note as a template for new notes _(since v1.5)_
-* You can color-code notes to see in one glance what's up (or down ;-) ) _(since v1.6)_
-* Links within notes automagically have `target="_blank"` added so you won't accidently leave your site while working with the plugins _(since v1.5)_
-* Version number of the plugin is automatically registered with the note, so you can easily see if the note applies to the current version of the plugin or to an older version _(since v2.0)_
-* Import/export notes between websites/WP installs. When you import notes they will be intelligently merged with existing notes _(since v2.0)_
-* Purge notes for plugins which are no longer installed on a website _(since v2.0)_
-* Output filters to alter the html output of the plugin _(since v1.5)_
+>Add/edit/delete notes for each plugin on the plugin page
+>Multiple notes per plugin _(since v2.0)_
+
+>Allows (limited) HTML in notes _(since v1.1)_
+>Accepts [markdown syntax](http://daringfireball.net/projects/markdown/syntax) in notes _(since v1.5)_
+>Output filters to alter the html output of the plugin _(since v1.5)_
+>Magic variables: You can use [a number of variables](http://wordpress.org/extend/plugins/plugin-notes/faq/) which will be automagically replaced when the note displays _(since v1.5)_
+>Color-code notes _(since v1.6)_
+>Links within notes automagically have `target="_blank"` added so you won't accidentally leave your site while working with the plugins _(since v1.5)_
+>Version number of the plugin is automatically registered with the note, so you can easily see if the note applies to the current version of the plugin or to an older version _(since v2.0)_
+
+>Share notes with all other website admins or optionally keep certain notes private - for your eyes only -.
+
+>Save a note as a template for new notes _(since v1.5)_
+
+>Import/export notes between websites/WP installs. When you import notes they will be intelligently merged with existing notes _(since v2.0)_
+>Optionally exclude certain notes from export (i.e. site specific notes)
+>Purge notes for plugins which are no longer installed on a website _(since v2.0)_
+
+
+** Extra:**
+>Export a simple text file listing of installed plugins + versions
+
 
 Please have a look at the [FAQ](http://wordpress.org/extend/plugins/plugin-notes/faq/) for more information about these features.
 
+If you like this plugin, please [rate and/or review](http://wordpress.org/support/view/plugin-reviews/plugin-notes) it. If you have ideas on how to make the plugin even better or if you have found any bugs, please report these in the [Support Forum](http://wordpress.org/support/plugin/plugin-notes).
+
+
 = Requirements =
 
-The plugin requires PHP5+ and WP 3.0+
+The plugin requires PHP5+ and WP 3.5+
+
+= Compatibility =
+
+The plugin is not specifically well suited for multi-site installations. This is something which a future release will improve.
 
 *****
 
@@ -54,29 +73,36 @@ This plugin was inspired by a post by [Chris Coyier](http://digwp.com): (http://
 
 **DateFormatRegexGenerator script**: Guy Paddock from [Red Bottle Design](http://www.redbottledesign.com/blog/generating-pcre-regular-expressions-date-format-strings-php)
 
+**SweetiePlus icons**: [Joseph North](http://sublink.ca/)
 
-= Translations =
-Dutch - [jrf](http://wordpress.org/support/profile/jrf)
 
-Please help us make this plugin available in more languages by translating it. See the [FAQ](http://wordpress.org/extend/plugins/plugin-notes/faq/) for more info.
+= Localization =
+* Dutch - [jrf](http://wordpress.org/support/profile/jrf)
+
+Please help make this plugin available in more languages by translating it. The translation files are included in the download. See the [FAQ](http://wordpress.org/extend/plugins/plugin-notes/faq/) for more info.
+
 
 
 
 == Frequently Asked Questions ==
 
+= Why are the notes only shown on the plugins page and not on the update page ? That would be super-useful! =
+
+There is no hook available to hook into on the update page, however, you can easily still see an overview of only the plugins which need updates *with* their notes.
+By default, the plugins page will open to the _All_ view. At the top of the page you can however choose the following alternative views: _Active_ | _Recently active_ | _Inactive_ | _Must-Use_ | _Drop-ins_ |_Update available_ (some may not be available/visible depending on your setup). The plugin notes *will* display in those alternative views.
+
+From the _Update available_ view (and from any other plugin page view for that matter), you can then check the checkbox for any number of the plugins which you want to update and choose the _Update_ option from the drop-down list at the top and bottom of the list to start updating.
+
+
 = Where is the Plugin Notes data stored? =
 
 The notes are stored in the `plugin_notes` option in the options table of the database.
+The plugin notes settings are stored in the `plugin_notes_settings` option in the options table of the database.
 
 
 = You say that the plugin will show the plugin version of when the note was made. Why don't I see it ? =
 
 This will only work for notes saved after you upgraded to version 2.0 of this plugin.
-
-
-= How can I remove a previously saved note template ? =
-
-Open a note form (either click 'edit note' on an existing note or 'add new note'), clear the form and click on the 'save as template' button. Done!
 
 
 = Which variables can I use ? =
@@ -90,7 +116,7 @@ Instead of manually adding each and every link, you can just add the following n
 
 **Available variables**:
 `%PLUGIN_PATH%` : Plugin uri path on your website
-`%WPURI%` : URI of the WordPress repository of the plugin (Please note: it is not tested whether the plugin is actually registered in the WP plugin repository!)
+`%WPURI%` : URI of the WordPress repository of the plugin (Please note: it is not tested whether the plugin is actually registered in the WP plugin repository! The URI is an educated guess.)
 `%WPURI_LINK%` : A link to the above WordPress repository of the plugin
 
 **Already showing for each plugin (less useful)**:
@@ -102,13 +128,14 @@ Instead of manually adding each and every link, you can just add the following n
 `%DESCRIPTION%`: Description of the plugin
 
 
-= Can I use the markdown syntax in the notes ? =
+= Can I use markdown syntax in the notes ? =
 
 Yes, you can use markdown.
 The markdown syntax conversion is done on the fly. The notes are saved to the database without conversion.
 
 Don't like markdown ?
-Just add the following line to your theme's functions.php file:
+You can disable it on the Plugin Notes settings page.
+Alternatively just add the following line to your theme's functions.php file:
 `	remove_filter( 'plugin_notes_note', array(&$plugin_notes, 'filter_markdown' );`
 
 
@@ -119,29 +146,27 @@ Please refer to [markdown syntax](http://daringfireball.net/projects/markdown/sy
 
 = Can I use html in the notes ? =
 
-Yes, you can use html in the notes. The following tags are allowed: `a, br, p, b, strong, i, em, u, img, hr`.
+Yes, you can use html in the notes. The following tags are allowed: `a, br, p, b, strong, i, em, u, s, img, hr`.
 The html is saved to the database with the note.
 
 
 = Can I change the allowed html tags ? =
 
 Yes, you can, just add the following lines to your theme's functions.php file:
-`if( isset( $plugin_notes ) ) {
-	$plugin_notes->set_allowed_tags( $tags );
-}`
-where $tags is an array of html tags. You can test whether the change was succesfull by evaluating the outcome of the above function call. `True` means the change was succesfull. `False` means, it failed.
+`function my_allowed_tags_filter( $tags ) {
+	// do something to the tags
+	return $tags
+}
+add_filter( 'plugin_notes_allowed_tags', 'my_allowed_tags_filter' );`
 
-If you want to turn off the ability to use html in plugin notes completely, add the following lines to the functions.php file of your theme:
-`if( isset( $plugin_notes ) ) {
-	$plugin_notes->set_allowed_tags( array() );
-}`
-i.e. send the `set_allowed_tags()` function an empty array.
+If you want to turn off the ability to use html in plugin notes completely, just uncheck the 'allow html' checkbox on the settings page.
 
 
 = Can I change the output of the plugin ? =
 
 Yes, you can. There are filters provided at three points:
 1. The actual note to be displayed -> `plugin_notes_note`
+1. The title of the note to be displayed -> `plugin_notes_title`
 1. The html for the note including the surrounding box -> `plugin_notes_row`
 1. The html for the input form -> `plugin_notes_form`
 
@@ -149,6 +174,12 @@ Hook into those filters to change the output before it's send to the screen.
 
 `add_filter( 'plugin_notes_note', 'your_function', 10, 3 );
 function your_function( $note, $plugin_data, $plugin_file ) {
+	//do something
+	return $output;
+}`
+
+`add_filter( 'plugin_notes_title', 'your_function', 10, 1 );
+function your_function( $title ) {
 	//do something
 	return $output;
 }`
@@ -173,26 +204,29 @@ Example:
 
 = How can I translate the plugin? =
 
-The plugin is translation ready, though there is not much to translate. Use the `/languages/plugin-notes.pot` file to create a new .po file for your language. If you would like to offer your translation to other users, please open a thread in the [support forum](http://wordpress.org/support/plugin/plugin-notes) to contact us.
+The plugin is translation ready, though there is not much to translate. Use the `/languages/plugin-notes.pot` file which is included in the download to create a new .po file for your language. If you would like to offer your translation to other users, please open a thread in the [support forum](http://wordpress.org/support/plugin/plugin-notes) to contact us.
 
 
 == Changelog ==
 
 
-= 2012-12-20 / 2.0 by jrf =
+= 2013-02-28 / 2.0 by jrf =
+PLEASE NOTE: Once you upgrade, you can no longer downgrade without losing your notes!
+
 * General improvements in code, query efficiency and security + code documentation
-* [_General_] Added admin screen for import/export/purge functionality and override of some option defaults
 * [_Bug fix_] 'busy' image not loading when on a multi-site setup
-* [_Bug fix_] displayed save date is now properly localized (for dates upgraded to/saved in the timestamp format)
-* [_Bug fix_] Fixed: localization wasn't working in returned AJAX strings
+* [_Bug fix_] displayed save date is now properly localized (for dates upgraded to/saved in the timestamp format - upgrade routine included)
+* [_Bug fix_] Fixed: AJAX localization
 * [_Clean code_] Cleaned up the HTML output
 * [_Clean code_] Unobtrusified the javascript handlers
 * [_New feature_] Enabled multiple notes per plugin
 * [_New feature_] Added auto-save of version number of the plugin a note applies to
+//* [_New feature_] Added option to keep certain notes private: for your eyes only
+* [_New feature_] Added admin screen for import/export/purge functionality and override of some option defaults
 * [_New feature_] Added import/export functionality
+//* [_New feature_] Added option to selectively exclude certain notes from export
 * [_New feature_] Added purge functionality
-* [_New feature_] Added plugin notes to WP update page via AJAX (experimental)
-//* [_New feature_] Added extra output filter specific for the ajax result output
+//* [_New feature_] Added export plugin list as text file functionality
 //* Added screen options with js show/hide mechanism for notes
 * [_Usability improvement_] Change note date saving from formatted date to timestamp to facilitate changes in the date formatting options and date compare on import of notes
 * [_Usability improvement_] Added an easy way to change the allowed html tags list
@@ -204,10 +238,10 @@ The plugin is translation ready, though there is not much to translate. Use the 
 * [_l18n_] Updated the .POT file for new strings & updated the Dutch translation
 
 
-= 2012-12-18 / 1.6 by jrf =
+= 2012-12-18 / 1.6 by jrf (not publicly released) =
 * [_New feature_] Added ability to change the background color of notes
 
-= 2012-12-16 / 1.5 by jrf =
+= 2012-12-16 / 1.5 by jrf (not publicly released) =
 
 * General code review
 * [_Security_] Improved output escaping
@@ -253,6 +287,7 @@ New feature: color-code notes.
 
 = 1.5 =
 Improved security and new features: plugin notes template, markdown syntax support and variable replacement.
+
 
 == Installation ==
 

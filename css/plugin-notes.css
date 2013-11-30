@@ -1,0 +1,40 @@
+/* Add our icon to the Add new quote and Quote overview pages */
+.plugins_page_plugin-notes-settings #icon-plugins {
+	background: url("../images/with-shadows/clipboard-report-bar-24.png") 50% 50% no-repeat;
+}
+
+/* Only for the secondary h2's */
+.plugins_page_plugin-notes-settings .wrap div h2 {
+	margin-top: 0.5em;
+}
+
+.plugins_page_plugin-notes-settings h3 {
+	margin-top: 2em;
+}
+
+
+.plugins_page_plugin-notes-settings .wp-pn_indent {
+	margin-left: 1.5em;
+}
+
+.plugins_page_plugin-notes-settings .wp-pn_adminbar-img {
+	float: right;
+	padding: 8px;
+}
+
+.plugins_page_plugin-notes-settings #plugin_notes_settings_display img {
+	vertical-align: middle;
+}
+
+.plugins_page_plugin-notes-settings #plugin_notes_settings_display label {
+	padding-right: 30px;
+}
+
+.plugins_page_plugin-notes-settings table.form-table tr {
+	vertical-align: top;
+}
+
+/* Help tab variables table */
+#tab-panel-plugin-notes-variables th {
+	text-align: left;
+}
