@@ -186,11 +186,13 @@ The plugin is translation ready, though there is not much to translate. Use the 
 * [_Bug fix_] displayed save date is now properly localized (for dates upgraded to/saved in the timestamp format)
 * [_Bug fix_] Fixed: localization wasn't working in returned AJAX strings
 * [_Clean code_] Cleaned up the HTML output
+* [_Clean code_] Unobtrusified the javascript handlers
 * [_New feature_] Enabled multiple notes per plugin
 * [_New feature_] Added auto-save of version number of the plugin a note applies to
 * [_New feature_] Added import/export functionality
 * [_New feature_] Added purge functionality
-* Added screen options with js show/hide mechanism for notes
+//* [_New feature_] Added extra output filter specific for the ajax result output
+//* Added screen options with js show/hide mechanism for notes
 * [_Usability improvement_] Change note date saving from formatted date to timestamp to facilitate changes in the date formatting options and date compare on import of notes
 * [_Usability improvement_] Added an easy way to change the allowed html tags list
 * [_Usability improvement_] Updated the FAQ information in the readme file

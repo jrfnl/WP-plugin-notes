@@ -95,25 +95,47 @@ if( !class_exists('plugin_notes_import_export') && ( class_exists('plugin_notes'
 		}
 
 		function set_defaultcolor() {
-			$notes = $this->notes_object->_getset_notes();
+			$options = $this->notes_object->options;
 
 			if( isset( $_POST['wp-plugin_note_default_color'] ) ) {
-				$clean_color = $this->notes_object->_validate_note_color( $_POST['wp-plugin_note_default_color'] );
+				$clean_color = $this->notes_object->_validate_note_color( sanitize_text_field( $_POST['wp-plugin_note_default_color'] ) );
 
 				if( $clean_color !== $this->notes_object->defaultcolor ) {
-					$this->notes_object->defaultcolor = $clean_color;
-					$notes[$this->notes_object->option_keys['default_note_color']] = $clean_color;
+//					$this->notes_object->defaultcolor = $clean_color;
+					$options[$this->notes_object->option_keys['default_note_color']] = $clean_color;
 				}
 				unset( $clean_color );
 			}
 			
-			$notes = $this->notes_object->_getset_notes();
+			$options = $this->notes_object->_getset_notes( $options );
 		}
 		
+		function set_sortorder() {
+			$options = $this->notes_object->options;
+
+			// Validate received sortorder
+			if( isset( $_POST['wp-plugin_note_sortorder'] ) && ( in_array( $_POST['wp-plugin_note_sortorder'], array( 'asc', 'desc' ) === true && $_POST['wp-plugin_note_sortorder'] !== $this->notes_object->sortorder ) ) {
+
+				$options[$this->notes_object->option_keys['sortorder']] = $_POST['wp-plugin_note_sortorder'];
+			}
+			
+			$options = $this->notes_object->_getset_notes( $options );
+		}
+
 		function set_customdateformat() {
+			$options = $this->notes_object->options;
+
+			// No real way to validate as a date format can contain free text and any post is automatically a string
+			// so just check whether it's not empty and not the same as the known dateformat
+			if( ( isset( $_POST['wp-plugin_note_custom_dateformat'] ) && !empty( $_POST['wp-plugin_note_custom_dateformat'] ) ) && $_POST['wp-plugin_note_custom_dateformat'] !== $this->notes_object->dateformat ) {
+				$options[$this->notes_object->option_keys['custom_dateformat']] = sanitize_text_field( $_POST['wp-plugin_note_custom_dateformat'] );
+			}
+
+			$options = $this->notes_object->_getset_notes( $options );
 		}
 		
 		function validate_dateformat() {
+			// no real way to do this
 		}
 
 		function do_purge() {
@@ -261,7 +283,7 @@ if( !class_exists('plugin_notes_import_export') && ( class_exists('plugin_notes'
 			
 			Edit/Delete saved template
 			
-			Select default note color
+			/* Select default note color */
 			$output .= '
 								<label for="wp-plugin_note_default_color">' . __( 'Default note color:', PLUGIN_NOTES_NAME ) . '
 								<select name="wp-plugin_note_default_color" id="wp-plugin_note_default_color">
@@ -277,9 +299,28 @@ if( !class_exists('plugin_notes_import_export') && ( class_exists('plugin_notes'
 
 			$output .= '
 								</select></label>';
-								
-								
-			// Set custom date format for plugin notes (different from main WP date format)
+
+
+			/* Set sort order for plugin notes */
+			$output .= '
+								<span>' . __( 'Display order:', PLUGIN_NOTES_NAME ) . '</span>
+								<input name="wp-plugin_note_sortorder" id="wp-plugin_note_sortorder_asc" type="radio" value="asc" ' .
+								( ( 'asc' === $this->notes_object->sortorder ) ? ' selected="selected"' : '' ) .
+								'" />
+								<label for="wp-plugin_note_sortorder_asc">' . __( 'Most recent last (ascending)', PLUGIN_NOTES_NAME ) . '</label>
+								<input name="wp-plugin_note_sortorder" id="wp-plugin_note_sortorder_desc" type="radio" value="desc" ' .
+								( ( 'desc' === $this->notes_object->sortorder ) ? ' selected="selected"' : '' ) .
+								'" />
+								<label for="wp-plugin_note_sortorder_desc">' . __( 'Most recent first (descending)', PLUGIN_NOTES_NAME ) . '</label>
+			';
+
+
+			/* Set custom date format for plugin notes (different from main WP date format) */
+			$output .= '
+								<label for="wp-plugin_note_custom_dateformat">' . __( 'Custom date format:', PLUGIN_NOTES_NAME ) . '</label>
+								<input name="wp-plugin_note_custom_dateformat" id="wp-plugin_note_custom_date_format" type="text" size="40" value="' . $this->notes_object->dateformat . '" />
+			';
+
 
 			Display order: most recent first (desc)/last(asc)
 
@@ -290,8 +331,9 @@ if( !class_exists('plugin_notes_import_export') && ( class_exists('plugin_notes'
 			Import settings:
 
 			Replace or merge ?
-			
+
 			Use import settings found in the import file ? (if available)
+			Import template ? checkbox
 
 
 			How to merge ?
@@ -356,6 +398,68 @@ if( !class_exists('plugin_notes_import_export') && ( class_exists('plugin_notes'
 
 
 		}
+		
+		
+
+		
+		/**
+		 * Validate the saved options.
+		 *
+		 * @since 3.0
+		 * @param array $input with unvalidated options.
+		 * @return array $valid_input with validated options.
+		 */
+/*		function options_validate( $input ) {
+			$valid_input = $input;
+
+			// echo '<pre>'.print_r($input,1).'</pre>';
+			// die;
+
+			if ( !in_array( $input['button_type'], array( 'pf-button.gif', 'button-print-grnw20.png',  'button-print-blu20.png',  'button-print-gry20.png',  'button-print-whgn20.png',  'pf_button_sq_gry_m.png',  'pf_button_sq_gry_l.png',  'pf_button_sq_grn_m.png',  'pf_button_sq_grn_l.png', 'pf-button-big.gif', 'pf-icon-small.gif', 'pf-icon.gif', 'pf-button-both.gif', 'pf-icon-both.gif', 'text-only', 'custom-image') ) )
+				$valid_input['button_type'] = 'pf-button.gif';
+
+			if ( !isset( $input['custom_image'] ) )
+				$valid_input['custom_image'] = '';
+
+			if ( !in_array( $input['show_list'], array( 'all', 'single', 'posts', 'manual') ) )
+				$valid_input['show_list'] = 'all';
+
+			if ( !in_array( $input['content_position'], array( 'none', 'left', 'center', 'right' ) ) )
+				$valid_input['content_position'] = 'left';
+
+			if ( !in_array( $input['content_placement'], array( 'before', 'after' ) ) )
+				$valid_input['content_placement'] = 'after';
+
+			foreach ( array( 'margin_top', 'margin_right', 'margin_bottom', 'margin_left' ) as $opt )
+				$valid_input[$opt] = (int) $input[$opt];
+
+			$valid_input['text_size'] = (int) $input['text_size'];
+
+			if ( !isset($valid_input['text_size']) || 0 == $valid_input['text_size'] ) {
+				$valid_input['text_size'] = 14;
+			} else if ( 25 < $valid_input['text_size'] || 9 > $valid_input['text_size'] ) {
+				$valid_input['text_size'] = 14;
+				add_settings_error( $this->option_name, 'invalid_color', __( 'The text size you entered is invalid, please stay between 9px and 25px', PLUGIN_NOTES_NAME  ) );
+			}
+
+			if ( !isset( $input['text_color'] )) {
+				$valid_input['text_color'] = $this->options['text_color'];
+			} else if ( ! preg_match('/^#[a-f0-9]{3,6}$/i', $input['text_color'] ) ) {
+				// Revert to previous setting and throw error.
+				$valid_input['text_color'] = $this->options['text_color'];
+				add_settings_error( $this->option_name, 'invalid_color', __( 'The color you entered is not valid, it must be a valid hexadecimal RGB font color.', PLUGIN_NOTES_NAME  ) );
+			}
+
+			$valid_input['db_version'] = $this->db_version;
+
+			return $valid_input;
+		}
+*/
+
+  		function validate_options( $received ) {
+		}
+
+
 
 		function save_settings() {
 		}
