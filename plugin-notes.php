@@ -3,17 +3,18 @@
 Plugin Name: Plugin Notes
 Plugin URI: http://wordpress.org/extend/plugins/plugin-notes/
 Description: Allows you to add notes to plugins. Simple and sweet.
-Version: 1.6
+Version: 2.0
 Author: Mohammad Jangda
 Author URI: http://digitalize.ca/
 Contributor: Juliette Reinders Folmer
 Contributor URI: http://adviesenzo.nl/
 Text Domain: plugin-notes
-Domain Path: /languages
+Domain Path: /languages/
 
 
 Copyright 2009-2010 Mohammad Jangda
-
+*/
+/*
 GNU General Public License, Free Software Foundation <http://creativecommons.org/licenses/GPL/2.0/>
 
 This program is free software; you can redistribute it and/or modify
@@ -29,27 +30,67 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+*/
 
+/*
+DEVELOPERS note: when regenerating a .pot file for the plugin, either (manually) removed the strings which are already included in the WP core or make sure that the translators note ('no need to translate') is included
+*/
+
+
+/*
+@todo: will using timestamps as keys really work ? What if - althought unlikely - two admins add a note at the same time ?
+maybe just use normal numeric keys and then use array_multisort ? then again, in that sense, option could have changed between retrieval and writing it back. Is this really an issue ?
 */
 
 if ( !class_exists( 'plugin_notes' ) ) {
 
-	if( !defined( 'PLUGIN_NOTES_VERSION' ) ) { define( 'PLUGIN_NOTES_VERSION', 1.2 ); }
-	if( !defined( 'PLUGIN_NOTES_BASENAME' ) ) { define( 'PLUGIN_NOTES_BASENAME', dirname( plugin_basename( __FILE__ ) ) ); }
+	if( !defined( 'PLUGIN_NOTES_VERSION' ) ) { define( 'PLUGIN_NOTES_VERSION', '2.0' ); }
+	if( !defined( 'PLUGIN_NOTES_BASENAME' ) ) { define( 'PLUGIN_NOTES_BASENAME', plugin_basename( __FILE__ ) ); } // = dir/file.php
+	if( !defined( 'PLUGIN_NOTES_NAME' ) ) { define( 'PLUGIN_NOTES_NAME', dirname( PLUGIN_NOTES_BASENAME ) ); } // = dir
 	if( !defined( 'PLUGIN_NOTES_URL' ) ) { define( 'PLUGIN_NOTES_URL', plugin_dir_url( __FILE__ ) ); } // has trailing slash
-	if( !defined( 'PLUGIN_NOTES_DIR' ) ) { define( 'PLUGIN_NOTES_DIR', plugin_dir_path(__FILE__) ); } // has trailing slash
+	if( !defined( 'PLUGIN_NOTES_DIR' ) ) { define( 'PLUGIN_NOTES_DIR', plugin_dir_path( __FILE__ ) ); } // has trailing slash
+
+/*pr_var( __FILE__, '__FILE__', true );
+pr_var( plugin_dir_path( __FILE__ ), 'plugin_dir_path( __FILE__ )', true );
+pr_var( PLUGIN_NOTES_DIR, 'PLUGIN_NOTES_DIR', true );
+exit;*/
 
 	class plugin_notes {
 
-		var $notes = array();
+		/** Minimum required capability to see and/or update the notes */
+		var $required_role = 'activate_plugins';
+
+		/** Page on which the plugin functions and underneath which the settings page will be hooked */
+		var $parent_page = 'plugins.php';
+
+		/** settings page registration hook suffix */
+		var $hook;
+
+
+		/** Name of options variable */
 		var $notes_option = 'plugin_notes';
+
+		/** The notes array keys for settings relating to this plugin, rather than to notes about plugins */
+		var $option_keys = array(
+			'version'				=>	'plugin-notes_version',
+			'template'				=>	'plugin-notes_template',
+			'sortorder'				=>	'plugin-notes_sortorder',
+			'default_note_color'	=>	'plugin-notes_defaultcolor',
+			'custom_dateformat'		=>	'plugin-notes_dateformat',
+		);
+
+		/** Variable holding the current options array for this plugin */
+		var $options = null;
+
 		var $nonce_added = false;
 
+
+		/** Allowed html tags for notes */
 		var $allowed_tags = array(
 			'a' => array(
-				'href' => array(),
-				'title' => array(),
-				'target' => array(),
+				'href' => true,
+				'title' => true,
+				'target' => true,
 			),
 			'br' => array(),
 			'p' => array(),
@@ -59,13 +100,14 @@ if ( !class_exists( 'plugin_notes' ) ) {
 			'em' => array(),
 			'u' => array(),
 			'img' => array(
-				'src' => array(),
-				'height' => array(),
-				'width' => array(),
+				'src' => true,
+				'height' => true,
+				'width' => true,
 			),
 			'hr' => array(),
 		);
-		
+
+		/** Available box colors */
 		var $boxcolors = array(
 			'#EBF9E6', // light green
 			'#F0F8E2', // lighter green
@@ -77,9 +119,33 @@ if ( !class_exists( 'plugin_notes' ) ) {
 			'#F9F0E6', // earth
 			'#E9E2F8', // light purple
 			'#D7DADD', // light grey
+			'#EAECED', // very light grey
 		);
+		/** Default box color */
 		var $defaultcolor	= '#EAF2FA';
+		
+		/** Dateformat to be used by plugin notes */
+		var $dateformat = null;
 
+//		var $buttons = array();
+
+/*		var $buttons = array(
+			'add_new_note'		=>	'Add new plugin note',
+			'edit_note'			=>	'Edit note',
+			'delete_note'		=>	'Delete note',
+			'save_note'			=>	'Save',
+			'cancel_edit'		=>	'Cancel',
+			'save_as_template'	=>	'Save as template for new notes',
+			'title_doubleclick'	=>	'Double click to edit me!',
+			'title_loading'		=>	'Loading...',
+			'label_notecolor'	=>	'Note color:',
+			'versionnr'			=>	'v.',
+		);*/
+
+
+		/**
+		 * Backward compatibility for constructor
+		 */
 		function plugin_notes() {
 			$this->__construct();
 		}
@@ -89,57 +155,261 @@ if ( !class_exists( 'plugin_notes' ) ) {
 		 */
 		function __construct() {
 
-			add_action( 'plugins_loaded', array( &$this, 'load_textdomain' ) );
+			/* Don't do anything if we're not in admin */
+			if ( !is_admin() )
+				return;
 
-			$this->notes = $this->_get_notes();
 
-			// Add notes to plugin row
-			add_filter('plugin_row_meta', array(&$this, 'plugin_row_meta'), 10, 4);
+			/* Get the current options set */
+			$this->options = $this->_getset_options();
 
-			// Add string replacement and markdown syntax filters to the note
-			add_filter( 'plugin_notes_note', array(&$this, 'filter_kses'), 10, 1 );
-			add_filter( 'plugin_notes_note', array(&$this, 'filter_variables_replace'), 10, 3 );
-			add_filter( 'plugin_notes_note', array(&$this, 'filter_markdown'), 10, 1 );
-			add_filter( 'plugin_notes_note', array(&$this, 'filter_breaks'), 10, 1 );
+			/* Check if we have any activation or upgrade actions to do */
+			if( !isset( $this->options[$this->option_keys['version']] ) || $this->options[$this->option_keys['version']] !== PLUGIN_NOTES_VERSION ) {
+				add_action( 'init', array( &$this, 'upgrade_plugin' ), 8 );
+			}
+			// Make sure that an upgrade check is done on (re-)activation as well.
+			register_activation_hook( __FILE__, array( &$this, 'upgrade_plugin' ) );
 
-			// Add js and css files
-			add_action('admin_enqueue_scripts', array(&$this, 'enqueue_scripts'));
+
+			// Register the plugin initialization action and load localized text strings
+			add_action( 'init', array( &$this, 'init' ) );
+			add_action( 'init', array( &$this, 'load_textdomain' ) );
+		}
+		
+
+
+		function init() {
 			
-			// Add helptab
-			add_action( 'admin_head-plugins.php', array(&$this, 'add_help_tab' ));
+			/* Don't do anything if user does not have the required capability */
+			if ( !is_admin() || current_user_can( $this->required_role ) === false )
+				return;
+				
 
-			// Add ajax action to edit posts
-			add_action('wp_ajax_plugin_notes_edit_comment', array(&$this, 'ajax_edit_plugin_note' ));
+			/* Register the settings (import/export/purge) page */
+			add_action( 'admin_menu', array( &$this, 'add_config_page' ) );
+			//network_admin_menu
+
+			// Add settings link to plugin page
+//			add_filter( 'plugin_action_links', array( &$this, 'add_settings_link' ), 10, 2 );
+			add_filter( 'plugin_action_links_' . PLUGIN_NOTES_BASENAME , array( &$this, 'add_settings_link' ), 10, 2 );
+
+
+			/* Register our option array */
+//			register_setting( $this->notes_option, $this->notes_option, array( &$this, 'options_validate' ) );
+
+
+			/* Add notes to plugin row */
+			add_filter( 'plugin_row_meta', array( &$this, 'plugin_row_meta' ), 10, 4 );
+
+			// Add output filters to the note (string replacement and markdown syntax)
+			add_filter( 'plugin_notes_notetext', array( &$this, 'filter_kses' ), 10, 1 );
+			add_filter( 'plugin_notes_notetext', array( &$this, 'filter_variables_replace' ), 10, 3 );
+			add_filter( 'plugin_notes_notetext', array( &$this, 'filter_markdown' ), 10, 1 );
+			add_filter( 'plugin_notes_notetext', array( &$this, 'filter_breaks' ), 10, 1 );
+			add_filter( 'plugin_notes_pi_versionnr', array( &$this, 'filter_age_pi_version' ), 10, 2 );
+
+
+			/* Add ajax action to edit/save posts */
+			add_action( 'wp_ajax_plugin_notes_edit_comment', array( &$this, 'ajax_edit_plugin_note' ) );
+
+
+
+			/* Add js and css files */
+			add_action( 'admin_enqueue_scripts', array( &$this, 'enqueue_scripts' ) );
+
+
+			/* Add contextual help */
+			if ( version_compare( $GLOBALS['wp_version'], '3.3', '>=' ) === true ) {
+
+				// Add helptab *behind* existing core page help tabs
+				// (reason for using admin_head hook instead of load hook)
+				add_action( 'admin_head-' . $this->parent_page, array( &$this, 'add_help_tab' ) );
+				//add_action( 'load-'. $this->parent_page, array( &$this, 'add_help_tab' ) );
+			}
+			else {
+				// @todo check which version works (best)
+//				add_action( 'admin_init', array( &$this, 'add_contextual_help_a' ) );
+				add_filter( 'contextual_help', array( &$this, 'add_contextual_help_b' ), 10, 3 );
+			}
+		}
+
+
+		/**
+		 * Localization of text used in the plugin
+		 * Also initialize the language variables used for the form/action buttons
+		 * to make them available to both PHP and js
+		 *
+		 * @todo - check if button string localization now works if not in this function, but straight in
+		 * the note functions and if so, remove here
+		 */
+		function load_textdomain() {
+//			global $pagenow;
+
+			/* Only load the text strings where relevant */
+			/* Page check removed as menu title also needs localization, so strings need always be loaded */
+			if ( ( is_admin() && current_user_can( $this->required_role ) === true ) /*&& ( in_array( $pagenow, array( $this->parent_page, $this->hook, 'admin-ajax.php' ) ) ) === true*/ ) {
+
+				load_plugin_textdomain( PLUGIN_NOTES_NAME, false, PLUGIN_NOTES_NAME . '/languages/' );
+
+/*				$this->buttons = array(
+					'add_new_note'		=>	__( 'Add new plugin note', PLUGIN_NOTES_NAME ),
+					'edit_note'			=>	__( 'Edit note', PLUGIN_NOTES_NAME ),
+					'delete_note'		=>	__( 'Delete note', PLUGIN_NOTES_NAME ),
+					'save_note'			=>	__( 'Save' ),
+					'cancel_edit'		=>	__( 'Cancel' ),
+					'save_as_template'	=>	__( 'Save as template for new notes', PLUGIN_NOTES_NAME ),
+					'title_doubleclick'	=>	__( 'Double click to edit me!', PLUGIN_NOTES_NAME ),
+					'title_loading'		=>	__( 'Loading...', PLUGIN_NOTES_NAME ),
+					'label_notecolor'	=>	__( 'Note color:', PLUGIN_NOTES_NAME ),
+					'versionnr'			=>	__( 'v. %s', PLUGIN_NOTES_NAME ),
+				);
+*/
+			}
 		}
 
 		/**
-		 * Localization, what?!
+		 * Register the config page for all users that have the required capability
+		 *
+		 * @since 3.0
 		 */
-		function load_textdomain() {
-			load_plugin_textdomain( PLUGIN_NOTES_BASENAME, false, PLUGIN_NOTES_DIR . 'languages/' );
+		function add_config_page() {
+			$this->hook = add_plugins_page( __( 'Plugin Notes Options', PLUGIN_NOTES_NAME ), __( 'Plugin Notes Options', PLUGIN_NOTES_NAME ), $this->required_role, PLUGIN_NOTES_NAME, array( &$this, 'config_page' ) );
 		}
+
+		/**
+		 * Function to re-direct the config page to the settings file
+		 */
+		function config_page() {
+
+			//must check that the user has the required capability
+			if( !current_user_can( $this->required_role ) ) {
+				/* TRANSLATORS: no need to translate - standard WP core translation will be used */
+				wp_die( __( 'You do not have sufficient permissions to access this page.' ) );
+			}
+
+			include_once( PLUGIN_NOTES_DIR . 'plugin_notes_settings.php' );
+			$settings = new plugin_notes_settings( &$this );
+//			$settings->process_page();
+		}
+
+
+		/**
+		 * Function used when activating and/or upgrading the plugin
+		 *
+		 * Initial activate: Save version number to option
+		 * Upgrade for v2.0: Update old options structure to new
+		 *
+		 * @return bool
+		 */
+		function upgrade_plugin() {
+
+			$upgraded = false;
+
+pr_var( $this->options, 'Original options within upgrade routine', true );
+			// First time activation of plugin
+			if( is_array( $this->options ) === false ||  count( $this->options ) === 0 ) {
+				$this->options[$this->option_keys['version']] = PLUGIN_NOTES_VERSION;
+				$upgraded = true;
+			}
+
+			// Upgrades for any version of this plugin lower than 2.0
+			// Version nr has to be hard coded to be future-proof, i.e. facilitate upgrade routines for various versions
+			if( !isset( $this->options[$this->option_keys['version']] ) || version_compare( $this->options[$this->option_keys['version']], '2.0', '<') ) {
+
+				foreach( $this->options as $key => $note ) {
+
+					// Change date from formatted date to timestamp
+					if( isset( $note['date'] ) && $note['date'] !== '' ) {
+						$timestamp = $this->_formatted_date_to_timestamp( $note['date'] );
+						if( !is_null( $timestamp ) && !is_null( $this->_validate_timestamp( $timestamp ) ) ) {
+							$note['original_date'] = $note['date'];
+							$note['date'] = $timestamp;
+						}
+						unset( $timestamp );
+					}
+
+					// Change plugin notes from single-dimension array to multi-array
+					// just not for our own options
+					if( in_array( $key, $this->option_keys, true ) === false &&
+						( is_array( $note ) && count( $note ) > 0 ) ) {
+
+						unset( $this->options[$key] );
+						$this->options[$key][$note['date']] = $note;
+					}
+				}
+				unset( $key, $note );
+
+				$this->options[$this->option_keys['version']] = '2.0';
+				$upgraded = true;
+			}
+
+			if( $upgraded === true ) {
+				$this->options = $this->_getset_options( $this->options );
+pr_var( $this->options, 'Options after upgrade', true );
+			}
+			return $upgraded;
+		}
+
+
+		/**
+		 * Retrieve a timestamp based on a formatted date and a known datestring
+		 *
+		 * @usedby	upgrade_plugin()
+		 * @param	string		$datestring		The date to get the timestamp for
+		 * @return	int|null	the timestamp or null if conversion failed
+		 */
+		function _formatted_date_to_timestamp( $datestring ) {
+			static $str2timestamp = null;
+
+			if( is_null( $str2timestamp ) ) {
+				include_once( PLUGIN_NOTES_DIR . 'inc/plugin_notes_date_string_to_timestamp.php' );
+				$str2timestamp = plugin_notes_date_string_to_timestamp::getInstance();
+			}
+			return $str2timestamp->translate_to_timestamp( $datestring, $this->dateformat );
+		}
+
+
 
 
 		/**
 		 * Adds necessary javascript and css files
 		 */
 		function enqueue_scripts() {
-
 			global $pagenow;
 
-			if($pagenow === 'plugins.php') {
-				wp_enqueue_script('plugin-notes', PLUGIN_NOTES_URL . 'plugin-notes.js', array('jquery', 'wp-ajax-response'), PLUGIN_NOTES_VERSION, true);
-				wp_enqueue_style('plugin-notes', PLUGIN_NOTES_URL . 'plugin-notes.css', false, PLUGIN_NOTES_VERSION, 'all');
-				?>
-	<script type="text/javascript">
-		if(!i18n || i18n == 'undefined') var i18n = {};
-		i18n.plugin_notes = {};
-		i18n.plugin_notes.confirm_delete = "<?php _e('Are you sure you want to delete this note?', PLUGIN_NOTES_BASENAME ); ?>";
-		i18n.plugin_notes.confirm_new_template = "<?php _e('Are you sure you want to save this note as a template?\n\rAny changes you made will not be saved to this particular plugin note.\n\r\n\rAlso beware: saving this note as the plugin notes template will overwrite any previously saved templates!', PLUGIN_NOTES_BASENAME ); ?>";
-		i18n.plugin_notes.success_save_template = "<?php _e('New notes template saved succesfully', PLUGIN_NOTES_BASENAME ); ?>"
-	</script>
-			<?php
+			if( $pagenow === $this->parent_page ) {
+				wp_enqueue_script( PLUGIN_NOTES_NAME, PLUGIN_NOTES_URL . 'plugin-notes.js', array( 'jquery', 'wp-ajax-response' ), PLUGIN_NOTES_VERSION, true );
+				wp_enqueue_style( PLUGIN_NOTES_NAME, PLUGIN_NOTES_URL . 'plugin-notes.css', false, PLUGIN_NOTES_VERSION, 'all' );
+				
+				wp_localize_script( PLUGIN_NOTES_NAME, 'i18n_plugin_notes', $this->get_javascript_i18n() );
 			}
+		}
+
+		/**
+		 * Retrieve the strings for use in the javascript file
+		 *
+		 * @todo check if that this is working [Yup! working - loading in footer] 
+		 * and/or necessary (did I already fix it differently for the button strings ?)
+		 *
+		 * @return	array
+		 */
+		function get_javascript_i18n() {
+			$strings = array(
+				'confirm_delete'	=> esc_js( __( 'Are you sure you want to delete this note?', PLUGIN_NOTES_NAME ) ),
+				'confirm_template'	=> sprintf( esc_js( __( 'Are you sure you want to save this note as a template?%sAny changes you made will not be saved to this particular plugin note.%s%sAlso beware: saving this note as the plugin notes template will overwrite any previously saved templates!', PLUGIN_NOTES_NAME ) ), "\n\r", "\n\r", "\n\r" ),
+				'success_save_template'	=> esc_js( __( 'New notes template saved succesfully', PLUGIN_NOTES_NAME ) ),
+				'success_editsave'	=> esc_js( __( 'Your changes have been saved succesfully', PLUGIN_NOTES_NAME ) ),
+				'success_delete'	=> esc_js( __( 'Note deleted', PLUGIN_NOTES_NAME ) ),
+				'error_nonce'		=> esc_js( __( 'Don\'t think you\'re supposed to be here...', PLUGIN_NOTES_NAME ) ),
+				'error_loggedin'	=> esc_js( __( 'Your session seems to have expired. You need to log in again.', PLUGIN_NOTES_NAME ) ),
+				'error_capacity'	=> esc_js( __( 'Sorry, you do not have permission to activate plugins.', PLUGIN_NOTES_NAME ) ),
+			);
+/*			foreach( $this->buttons as $k => $v ) {
+				$strings['button_' . $k]	= esc_js( $v );
+			}
+			unset( $k, $v );
+*/
+			return $strings;
 		}
 
 
@@ -151,88 +421,455 @@ if ( !class_exists( 'plugin_notes' ) ) {
 			$screen = get_current_screen();
 
 			if( method_exists( $screen, 'add_help_tab' ) === true ) {
+
 				$screen->add_help_tab( array(
 					'id'      => 'plugin-notes-help', // This should be unique for the screen.
 					'title'   => 'Plugin Notes',
-					'content' => '
-						<p>' . sprintf( __( 'The <em><a href="%s">Plugin Notes</a></em> plugin let\'s you add notes for each installed plugin. This can be useful for documenting changes you made or how and where you use a plugin in your website.', PLUGIN_NOTES_BASENAME ), 'http://wordpress.org/extend/plugins/plugin-notes/" target="_blank" class="ext-link') . '</p>
-						<p>' . sprintf( __( 'You can use <a href="%s">Markdown syntax</a> in your notes as well as HTML.', PLUGIN_NOTES_BASENAME ), 'http://daringfireball.net/projects/markdown/syntax" target="_blank" class="ext-link' ) . '</p>
-						<p>' . sprintf( __( 'On top of that, you can even use a <a href="%s">number of variables</a> which will automagically be replaced, such as for example <em>%%WPURI_LINK%%</em> which would be replaced by a link to the WordPress plugin repository for this plugin. Neat isn\'t it ?', PLUGIN_NOTES_BASENAME ), 'http://wordpress.org/extend/plugins/plugin-notes/faq/" target="_blank" class="ext-link' ) . '</p>
-						<p>' . sprintf( __( 'Lastly, you can save a note as a template for new notes. If you use a fixed format for your plugin notes, you will probably like the efficiency of this.', PLUGIN_NOTES_BASENAME ), '' ) . '</p>
-						<p>' . sprintf( __( 'For more information: <a href="%1$s">Plugin home</a> | <a href="%2$s">FAQ</a>', PLUGIN_NOTES_BASENAME ), 'http://wordpress.org/extend/plugins/plugin-notes/" target="_blank" class="ext-link', 'http://wordpress.org/extend/plugins/plugin-notes/faq/" target="_blank" class="ext-link' ) . '</p>',
-					// Use 'callback' instead of 'content' for a function callback that renders the tab content.
+					'callback' => array( &$this, 'get_helptext' ),
 					)
 				);
 			}
 		}
 
 		/**
-		 * Adds a nonce to the plugin page so we don't get nasty people doing nasty things
+		 * Adds contextual help text to the plugin page
+		 * Backwards compatibility for WP < 3.3.
 		 */
-		function plugin_row_meta( $plugin_meta, $plugin_file, $plugin_data, $context ) {
-			$note = isset( $this->notes[$plugin_file] ) ? $this->notes[$plugin_file] : array();
-			$this->_add_plugin_note($note, $plugin_data, $plugin_file);
+		function add_contextual_help_a( $screen, $help ) {
+			add_contextual_help( 'plugins', $this->get_helptext( null, null, false ) );
+		}
 
-			if(!$this->nonce_added) {
-				?><input type="hidden" name="wp-plugin_notes_nonce" value="<?php echo wp_create_nonce('wp-plugin_notes_nonce'); ?>" /><?php
-				$this->nonce_added = true;
+		/**
+		 * Adds contextual help text to the plugin page
+		 * Backwards compatibility for WP < 3.3.
+		 */
+		function add_contextual_help_b( $contextual_help, $screen_id, $screen ) {
+
+			if( $screen_id === 'plugins' ) {
+				return $this->get_helptext( null, null, false );
+			}
+		}
+
+		/**
+		 * Function containing the helptext string
+		 *
+		 * @param	bool	$echo	whether to echo or return the string
+		 * @return	string			help text
+		 */
+		function get_helptext( $screen, $tab, $echo = true ) {
+			$helptext = '
+								<p>' . sprintf( __( 'The <em><a href="%s">Plugin Notes</a></em> plugin let\'s you add notes for each installed plugin. This can be useful for documenting changes you made or how and where you use a plugin in your website.', PLUGIN_NOTES_NAME ), 'http://wordpress.org/extend/plugins/plugin-notes/" target="_blank" class="ext-link') . '</p>
+								<p>' . sprintf( __( 'You can use <a href="%s">Markdown syntax</a> in your notes as well as HTML.', PLUGIN_NOTES_NAME ), 'http://daringfireball.net/projects/markdown/syntax" target="_blank" class="ext-link' ) . '</p>
+								<p>' . sprintf( __( 'On top of that, you can even use a <a href="%s">number of variables</a> which will automagically be replaced, such as for example <em>%%WPURI_LINK%%</em> which would be replaced by a link to the WordPress plugin repository for this plugin. Neat isn\'t it ?', PLUGIN_NOTES_NAME ), 'http://wordpress.org/extend/plugins/plugin-notes/faq/" target="_blank" class="ext-link' ) . '</p>
+								<p>' . __( 'Lastly, you can save a note as a template for new notes. If you use a fixed format for your plugin notes, you will probably like the efficiency of this.', PLUGIN_NOTES_NAME ) . '</p>
+								<p>' . sprintf( __( 'For more information: <a href="%1$s">Plugin home</a> | <a href="%2$s">FAQ</a>', PLUGIN_NOTES_NAME ), 'http://wordpress.org/extend/plugins/plugin-notes/" target="_blank" class="ext-link', 'http://wordpress.org/extend/plugins/plugin-notes/faq/" target="_blank" class="ext-link' ) . '</p>';
+
+			if( $echo === true ) {
+				echo $helptext;
+			}
+			else {
+				return $helptext;
+			}
+		}
+
+
+
+		/**
+		 * Add screen options to the plugin page
+		 */
+		function add_screen_options() {
+			// @todo Add notes checkbox + start showing/hidden toggle ?
+		}
+
+
+
+		/**
+		 * Add settings/maintenance link to plugin-notes row for import/export/purge page
+		 *
+		 * @param	array	$links	Current links for the current plugin
+		 * @param	string	$file	The file for the current plugin
+		 * @return	array
+		 */
+		function add_settings_link( $links, $file ) {
+			if ( $file === PLUGIN_NOTES_BASENAME ) {
+				/* TRANSLATORS: no need to translate - standard WP core translation will be used */
+				$links[] = '<a href="' . esc_url( $this->plugin_options_url() ) . '">' . esc_html__( 'Settings' ) . '</a>';
+			}
+			return $links;
+		}
+
+		/**
+		 * Return absolute URL of options page
+		 *
+		 * @return string
+		 */
+		function plugin_options_url() {
+			return admin_url( $this->parent_page . '?page=' . PLUGIN_NOTES_NAME );
+		}
+
+
+		/**
+		 * Function to change the allowed html tags for notes or even remove the ability to use HTML completely
+		 *
+		 * @param	array	$tags - pass an empty array to disallow all html tags
+		 * @returns	bool	whether the list was succesfully changed
+		 */
+		function set_allowed_tags( $tags = array() ) {
+			$changed = false;
+
+			if( is_array( $tags ) ) {
+
+				if( count( $tags ) === 0 ) {
+					remove_filter( 'plugin_notes_note', array( &$this, 'filter_kses' ) );
+					add_filter( 'plugin_notes_note', 'wp_filter_nohtml_kses' );
+
+					$changed = true;
+				}
+				else {
+					$cleantags = array();
+					foreach( $tags as $tag ) {
+						$cleantags[] = tag_escape( $tag );
+					}
+					$this->allowed_tags = $cleantags;
+					unset( $cleantags, $tag );
+
+					$changed = true;
+				}
+			}
+			return $changed;
+		}
+
+
+		/**
+		 * Set/get the plugin notes option
+		 *
+		 * @param	array|null	$update		Optional: changed $this->options array - make sure the new array is validated first!
+		 */
+		function _getset_options( $update = null ) {
+			static $color_prop_set = false;
+			static $dateformat_prop_set = false;
+
+			if( !is_null( $update ) ) {
+				update_option( $this->notes_option, $update );
+				$this->options = $update;
+				$color_prop_set = false;
+				$dateformat_prop_set = false;
 			}
 
+			if( ( is_null( $this->options ) || $this->options === false ) || is_array( $this->options ) === false ||  count( $this->options ) === 0 ) {
+				// returns either the option arrayor false if option not found
+				$this->options = get_option( $this->notes_option );
+			}
+			
+			// Modify the default note color if necessary
+			if( $color_prop_set === false && isset( $this->options[$this->option_keys['default_note_color']] ) ) {
+				$this->defaultcolor = $this->options[$this->option_keys['default_note_color']];
+				$color_prop_set = true;
+			}
+			// Modify the date format if necessary
+			if( $dateformat_prop_set === false || is_null( $this->dateformat ) ) {
+				if( isset( $this->options[$this->option_keys['custom_dateformat']] ) ) {
+					$this->dateformat = $this->options[$this->option_keys['custom_dateformat']];
+				}
+				else {
+					$this->dateformat = get_option( 'date_format' );
+				}
+				$dateformat_prop_set = true;
+			}
+			return $this->options;
+		}
+		
+		/**
+		 * Get/remember the plugin data
+		 * Efficiency function
+		 *
+		 * @param	string	$plugin_file	dir/filename.php of plugin
+		 * @param	array	$plugin_data	Optional: any plugin_data already available
+		 * @return	array|null
+		 */
+		function _getremember_plugin_data( $plugin_file, $plugin_data = null ) {
+			static $plugin_info = null;
+
+			if( ( isset( $plugin_file ) && $plugin_file !== '' ) ) {
+
+				if( is_array( $plugin_data ) && count( $plugin_data ) > 0 ) {
+
+					if( isset( $plugin_info[$plugin_file] ) && ( is_array( $plugin_info[$plugin_file] ) && count( $plugin_info[$plugin_file] ) > 0 ) ) {
+						$plugin_info[$plugin_file] = array_merge( $plugin_info[$plugin_file], $plugin_data );
+					}
+					else {
+						$plugin_info[$plugin_file] = $plugin_data;
+					}
+				}
+
+				if( !isset( $plugin_info[$plugin_file] ) ) {
+
+					if( is_file( WP_PLUGIN_DIR . '/' . $plugin_file ) && is_readable( WP_PLUGIN_DIR . '/' . $plugin_file ) ) {
+
+						$plugin_info[$plugin_file] = get_plugin_data( WP_PLUGIN_DIR . '/' . $plugin_file, false, true );
+					}
+					else {
+						return null;
+					}
+				}
+
+				return $plugin_info[$plugin_file];
+			}
+			return null;
+		}
+
+
+
+
+
+		/**
+		 * Adds a nonce to the plugin page so we don't get nasty people doing nasty things
+		 * and start adding the notes
+		 */
+		function plugin_row_meta( $plugin_meta, $plugin_file, $plugin_data, $context ) {
+
+			$notes = isset( $this->options[$plugin_file] ) ? $this->options[$plugin_file] : null;
+			$plugin_data = $this->_getremember_plugin_data( $plugin_file, $plugin_data );
+
+			// @todo use settings API wp function ?
+			if( !$this->nonce_added ) {
+				echo '<input type="hidden" name="wp-plugin_notes_nonce" value="' . wp_create_nonce( 'wp-plugin_notes_nonce' ) . '" />';
+				$this->nonce_added = true;
+			}
+			
+			$this->_add_plugin_notes( $notes, $plugin_data, $plugin_file, true );
+
 			return $plugin_meta;
+		}
+
+
+		function _add_plugin_notes( $notes = null, $plugin_data, $plugin_file, $echo = true ) {
+			
+			$plugin_data = $this->_getremember_plugin_data( $plugin_file, $plugin_data );
+			
+			if( !is_null( $notes ) && ( is_array( $notes ) && count( $notes ) > 0 ) ) {
+				
+				// Sort the notes by key (=timestamp)
+				// @todo should the sortorder default be a class property ?
+				if( !isset( $this->options[$this->option_keys['sortorder']] ) || ( isset( $this->options[$this->option_keys['sortorder']] ) && $this->options[$this->option_keys['sortorder']] === 'asc' ) ) {
+					ksort( $notes );
+				}
+				else {
+					krsort( $notes );
+				}
+
+				// Add note blocks
+				foreach( $notes as $key => $note ) {
+					// Only add block if we actually have a note
+					if( is_array( $note ) && count( $note ) > 0 && ! empty( $note['note'] ) ) {
+						$this->_add_plugin_note( $note, $plugin_data, $plugin_file, true );
+					}
+				}
+			}
+			// Always add 'add new note link' + 'empty' form (with template)
+			$this->_add_plugin_note( null, $plugin_data, $plugin_file, true );
 		}
 
 		/**
 		 * Outputs pluging note for the specified plugin
 		 */
-		function _add_plugin_note ( $note = null, $plugin_data, $plugin_file, $echo = true ) {
+		function _add_plugin_note( $note = null, $plugin_data, $plugin_file, $echo = true ) {
 
-			$plugin_safe_name = $this->_get_plugin_safe_name($plugin_data['Name']);
-			$actions = array();
+			$plugin_data = $this->_getremember_plugin_data( $plugin_file, $plugin_data );
 
-			if(is_array($note) && !empty($note['note'])) {
-				$note_class = 'wp-plugin_note_box';
+//pr_var( $note, 'note as received from db', true );
+			// Merge defaults with received note
+			$note = wp_parse_args( $note, array(
+//				'new'				=> true,
+				'name'				=> $this->_get_plugin_safe_name( $plugin_data['Name'] ),
+				'class'				=> 'wp-plugin_note_box_blank',
+				'note'				=> null,
+//				'filtered_note'		=> null,
+				'user'				=> null,
+//				'username'			=> null,
+				'date'				=> null,
+//				'formatted_date'	=> null,
+				'original_date'		=> null,
+				'color'				=> $this->defaultcolor,
+//				'style'				=> null,
+				'pi_version'		=> null,
+				'actions'			=> array(),
+				'import_date'		=> null,
+//				'import_formatted_date'	=> null,
+				'import_user'		=> null,
+//				'import_username'	=> null,
+				)
+			);
+			
+			$attr_key = ( is_null( $note['date'] ) ? '' : '_' . esc_attr( $note['date'] ) );
 
-				$note_text = $note['note'];
-				$filtered_note_text = apply_filters( 'plugin_notes_note', $note_text, $plugin_data, $plugin_file );
+			$filtered_note = null;
+//			$author = null;
+//			$formatted_date = null;
+//			$importer = null;
+//			$formatted_import_date = null;
 
-				$note_author = get_userdata($note['user']);
-				$note_date = $note['date'];
-				
-				$note_color = ( ( isset( $note['color'] ) && $note['color'] !== '' ) ? $note['color'] : $this->defaultcolor );
+			$credits = array();
 
-				$actions[] = '<a href="#" onclick="edit_plugin_note(\''. esc_attr( $plugin_safe_name ) .'\'); return false;" id="wp-plugin_note_edit'. esc_attr( $plugin_safe_name ) .'" class="edit">'. __('Edit note', 'plugin-notes') .'</a>';
-				$actions[] = '<a href="#" onclick="delete_plugin_note(\''. esc_attr( $plugin_safe_name ) .'\'); return false;" id="wp-plugin_note_delete'. esc_attr( $plugin_safe_name ) .'" class="delete">'. __('Delete note', 'plugin-notes') .'</a>';
+
+//pr_var( $note, 'note after data merge', true );
+			if( !is_array( $note ) || count( $note ) === 0 || empty( $note['note'] ) ) {
+				$note['actions'][] = 'add';
 			}
+			// Prep some data for display
 			else {
-				$note_class = 'wp-plugin_note_box_blank';
-				$actions[] = '<a href="#" onclick="edit_plugin_note(\''. esc_attr( $plugin_safe_name ) .'\'); return false;">'. __('Add plugin note', 'plugin-notes') .'</a>';
-				$filtered_note_text = $note_text = '';
-				$note_author = null;
-				$note_date = '';
-				$note_color = $this->defaultcolor;
-			}
-			
-			$note_color_style = ( ( $note_color !== $this->defaultcolor ) ? ' style="background-color: ' . $note_color . ';"' : '' );
+//				$note['new'] = false;
+				$note['class'] = 'wp-plugin_note_box';
+				$filtered_note = apply_filters( 'plugin_notes_notetext', $note['note'], $plugin_data, $plugin_file );
 
+				if( !is_null( $note['user'] ) ) {
+					$author = get_userdata( $note['user'] );
+//					$author = get_user_by( 'id', $note['user'] );
+//					$author = $author->display_name;
+					// Allow for notes made by removed users
+					if( is_object( $author ) ) {
+						$credits[] = esc_html( $author->display_name );
+					}
+					unset( $author );
+				}
+				// Only show import info if the note hasn't been changed since
+				else if( !is_null( $note['import_user'] ) && !is_null( $note['import_date'] ) ) {
+					$importer = get_userdata( $note['import_user'] );
+//					$importer = get_user_by( 'id', $note['import_user'] );
+//					$importer = $importer->display_name;
+					$formatted_import_date = ( is_int( $note['import_date'] ) ? date_i18n( $this->dateformat, $note['import_date'] ) : null );
+
+					// Allow for notes imported by removed users
+					if( is_object( $importer ) && !is_null( $formatted_import_date ) ) {
+						$credits[] = sprintf( esc_html__( 'Imported by %1$s on %2$s', PLUGIN_NOTES_NAME ), esc_html( $importer->display_name ), esc_html( $formatted_import_date ) );
+					}
+					else if( is_object( $importer ) ) {
+						$credits[] = sprintf( esc_html__( 'Imported by %s', PLUGIN_NOTES_NAME ), esc_html( $importer->display_name ) );
+					}
+					unset( $importer, $formatted_import_date );
+				}
+
+				// Format new style timestamp-date or leave as-is for old style formatted date
+				// @todo: check that the date we receive from the db is cast back to an int and not still a string
+				$credits[] = esc_html( ( is_int( $note['date'] ) ? date_i18n( $this->dateformat, $note['date'] ) : ( isset( $note['original_date'] ) ? $note['original_date'] : $note['date'] ) ) );
+
+				if( !is_null( $note['pi_version'] ) ) {
+					$credits[] = sprintf( __( 'v. %s', PLUGIN_NOTES_NAME ), apply_filters( 'plugin_notes_pi_versionnr', $note['pi_version'], $plugin_data['Version'] ) );
+				}
+	
+				if( WP_DEBUG ) {
+					$nr = strval( $note['date'] );
+					$len = strlen( $nr );
+					$credits[] = substr( $nr, ($len-6 ) );
+					unset( $nr, $len );
+				}
+
+
+				$note['actions'][] = 'edit';
+				$note['actions'][] = 'delete';
+			}
+
+
+/*			$credits = array();
+			if( !is_null( $author ) ) {
+				$credits[] = esc_html( $author );
+			}
+			else if( !is_null( $importer ) ) {
+				if( !is_null( $formatted_import_date ) ) {
+					$credits[] = sprintf( esc_html__( 'Imported by %1$s on %2$s', PLUGIN_NOTES_NAME ), esc_html( $importer ), esc_html( $formatted_import_date ) );
+				}
+				else {
+					$credits[] = sprintf( esc_html__( 'Imported by %s', PLUGIN_NOTES_NAME ), esc_html( $importer ) );
+				}
+			}
+			if( !is_null( $formatted_date ) ) { $credits[] = esc_html( $formatted_date ); }
+			// Color versionnr depending on age
+//			if( !is_null( $note['pi_version'] ) ) { $credits[] = sprintf( $this->buttons['versionnr'], apply_filters( 'plugin_notes_pi_versionnr', $note['pi_version'], $plugin_data['Version'] ) ); }
+			if( !is_null( $note['pi_version'] ) ) { $credits[] = sprintf( __( 'v. %s', PLUGIN_NOTES_NAME ), apply_filters( 'plugin_notes_pi_versionnr', $note['pi_version'], $plugin_data['Version'] ) ); }
+
+			if( WP_DEBUG ) {
+				$nr = strval( $note['date'] );
+				$len = strlen( $nr );
+				$credits[] = substr( $nr, ($len-6 ) );
+				unset( $nr, $len );
+			}
+*/
+
+			$note_color_style = ( ( $note['color'] !== $this->defaultcolor ) ? ' style="background-color: ' . $note['color'] . ';"' : '' );
+
+
+
+
+//pr_var( $note, 'note after data alter', true );
+			// Generate html to display the note
 			$output = '
-			<div id="wp-plugin_note_' . esc_attr( $plugin_safe_name ) . '" ondblclick="edit_plugin_note(\'' . esc_attr( $plugin_safe_name ) . '\');" title="Double click to edit me!">
-				<span class="wp-plugin_note">' . $filtered_note_text . '</span>
-				<span class="wp-plugin_note_user">' . ( ( $note_author ) ? esc_html( $note_author->display_name ) : '' ) . '</span>
-				<span class="wp-plugin_note_date">' . esc_html( $note_date ) . '</span>
-				<span class="wp-plugin_note_actions">
-					' . implode(' | ', $actions) . '
-					<span class="waiting" style="display: none;"><img alt="' . __('Loading...', 'plugin-notes') . '" src="images/wpspin_light.gif" /></span>
-				</span>
-			</div>';
+							<div id="wp-plugin_note_' . esc_attr( $note['name'] ) . $attr_key . '" ondblclick="edit_plugin_note(\'' . esc_attr( $note['name'] ) . $attr_key . '\');" title="' . esc_attr( __( 'Double click to edit me!', PLUGIN_NOTES_NAME ) ) . '">';
+//							<div id="wp-plugin_note_' . esc_attr( $note['name'] ) . $attr_key . '" ondblclick="edit_plugin_note(\'' . esc_attr( $note['name'] ) . $attr_key . '\');" title="' . esc_attr( $this->buttons['title_doubleclick'] ) . '">';
+
+			if( !is_null( $filtered_note ) ) {
+				$output .= '
+								<div class="wp-plugin_note_text">' . $filtered_note . '</div>';
+			}
+			if( count( $credits ) > 0 ) {
+				$output .= '
+								<p class="wp-plugin_note_credits">' . implode( ' | ', $credits ) . '</p>';
+			}
+			unset( $filtered_note, $credits, $author, $importer, $formatted_date, $formatted_import_date );
 			
+
+
+			// @todo add onclick actions via js
+			// @todo see if we can make this code more efficient with a foreach, one <a> template with vars & implode
+			$output .= '
+								<p class="wp-plugin_note_actions">';
+
+			$total = count( $note['actions'] );
+			for( $i = 0; $i < $total; $i++ ) {
+
+				switch( $note['actions'][$i] ) {
+
+					case 'edit':
+						$output .= '
+									<a href="#" onclick="edit_plugin_note(\'' . esc_attr( $note['name'] ) . $attr_key . '\'); return false;" id="wp-plugin_note_edit'. esc_attr( $note['name'] ) . $attr_key . '" class="edit">' . __( 'Edit note', PLUGIN_NOTES_NAME ) . '</a>';
+
+//									<a href="#" onclick="edit_plugin_note(\'' . esc_attr( $note['name'] ) . $attr_key . '\'); return false;" id="wp-plugin_note_edit'. esc_attr( $note['name'] ) . $attr_key . '" class="edit">' . $this->buttons['edit_note'] . '</a>';
+						break;
+
+					case 'delete':
+						$output .= '
+									<a href="#" onclick="delete_plugin_note(\'' . esc_attr( $note['name'] ) . $attr_key . '\'); return false;" id="wp-plugin_note_delete'. esc_attr( $note['name'] ) . $attr_key . '" class="delete">' . __( 'Delete note', PLUGIN_NOTES_NAME ) . '</a>';
+
+//									<a href="#" onclick="delete_plugin_note(\'' . esc_attr( $note['name'] ) . $attr_key . '\'); return false;" id="wp-plugin_note_delete'. esc_attr( $note['name'] ) . $attr_key . '" class="delete">' . $this->buttons['delete_note'] . '</a>';
+						break;
+
+					case 'add':
+						$output .= '
+									<a href="#" onclick="edit_plugin_note(\'' . esc_attr( $note['name'] ) . '\'); return false;">'. __( 'Add new plugin note', PLUGIN_NOTES_NAME ) .'</a>';
+//									<a href="#" onclick="edit_plugin_note(\'' . esc_attr( $note['name'] ) . '\'); return false;">'. $this->buttons['add_new_note'] .'</a>';
+						break;
+				}
+				$output .= ( ( $i === ( $total - 1 ) ) ? '' : ' | ' );
+			}
+			unset( $i, $total );
+
+			$output .= '
+									<span class="waiting" style="display: none;"><img alt="' . __( 'Loading...', PLUGIN_NOTES_NAME ) . '" src="' . esc_url( admin_url( 'images/wpspin_light.gif' ) ) . '" /></span>
+								</p>
+							</div>';
+
+
 			$output = apply_filters( 'plugin_notes_row', $output, $plugin_data, $plugin_file );
+
 
 			// Add the form to the note
 			$output = '
-			<div class="' . $note_class . '"' . $note_color_style . '>
-				' . $this->_add_plugin_form($note_text, $note_color, $plugin_safe_name, $plugin_file, true, false) .
-				$output . '
-			</div>';
+						<div class="' . $note['class'] . '"' . $note_color_style . '>
+							' . $this->_add_plugin_form( $note, $plugin_file, true, false ) . '
+							' . $output . '
+						</div>';
+
+			unset( $note_color_style );
+
 
 			if( $echo === true ) {
 				echo $output;
@@ -241,153 +878,379 @@ if ( !class_exists( 'plugin_notes' ) ) {
 				return $output;
 			}
 		}
+		
+
+
 
 		/**
 		 * Outputs form to add/edit/delete a plugin note
+		 *
+		 * @todo allow for multiple notes per plugin
+		 * @todo unobtrusify the js onclick events
+		 * @todo check if html can be cleaned up more including getting rid of most ids
 		 */
-		function _add_plugin_form ( $note = '', $note_color, $plugin_safe_name, $plugin_file, $hidden = true, $echo = true ) {
-			$plugin_form_style = ($hidden) ? 'style="display:none"' : '';
+		function _add_plugin_form ( $note, $plugin_file, $hidden = true, $echo = true ) {
+
+			$plugin_form_style = ( $hidden === true ) ? 'style="display:none"' : '';
 
 			$new_note_class = '';
-			if( $note === '' ) {
-				$note = ( isset( $this->notes['plugin-notes_template'] ) ? $this->notes['plugin-notes_template'] : '' );
+			if( is_null( $note['note'] ) || empty( $note['note'] ) ) {
+				$note['note'] = ( isset( $this->notes['plugin-notes_template'] ) ? $this->notes['plugin-notes_template'] : '' );
 				$new_note_class = ' class="new_note"';
 			}
+			
+			$attr_key = ( is_null( $note['date'] ) ? '' : '_' . esc_attr( $note['date'] ) );
 
 			$output = '
-			<div id="wp-plugin_note_form_' . esc_attr( $plugin_safe_name ) . '" class="wp-plugin_note_form" ' . $plugin_form_style . '>
-				 <label for="wp-plugin_note_color_' . esc_attr( $plugin_safe_name ) . '">' . __( 'Note color:', 'plugin-notes') . '
-				 <select name="wp-plugin_note_color_' . esc_attr( $plugin_safe_name ) . '" id="wp-plugin_note_color_' . esc_attr( $plugin_safe_name ) . '">
+							<div id="wp-plugin_note_form_' . esc_attr( $note['name'] ) . $attr_key . '" class="wp-plugin_note_form" ' . $plugin_form_style . '>
+								<label for="wp-plugin_note_color_' . esc_attr( $note['name'] ) . $attr_key . '">' . /*$this->buttons['label_notecolor']*/ __( 'Note color:', PLUGIN_NOTES_NAME ) . '
+								<select name="wp-plugin_note_color_' . esc_attr( $note['name'] ) . $attr_key . '" id="wp-plugin_note_color_' . esc_attr( $note['name'] ) . $attr_key . '">
 			';
-			
+
 			// Add color options
 			foreach( $this->boxcolors as $color ){
 				$output .= '
-					<option value="' . $color . '" style="background-color: ' . $color . '; color: ' . $color . ';"' .
-					( ( $color === $note_color ) ? ' selected="selected"' : '' ) .
-					'>' . $color . '</option>';
+									<option value="' . esc_attr( $color ) . '" style="background-color: ' . esc_attr( $color ) . '; color: ' . esc_attr( $color ) . ';"' .
+					( ( $color === $note['color'] ) ? ' selected="selected"' : '' ) .
+					'>' . esc_attr( $color ) . '</option>';
 			}
 
+			// @todo see if we can merge the error and success spans
+			// @todo unobtrusify the javascript / add onclick handler via js
 			$output .= '
-				</select></label>
-				<textarea name="wp-plugin_note_text_' . esc_attr( $plugin_safe_name ) . '" cols="90" rows="10"' . $new_note_class . '>' . esc_textarea( $note ) . '</textarea>
-				<span class="wp-plugin_note_error error" style="display: none;"></span>
-				<span class="wp-plugin_note_success success" style="display: none;"></span>
-				<span class="wp-plugin_note_edit_actions">
-'.					// TODO: Unobtrusify the javascript
-'					<a href="#" onclick="save_plugin_note(\'' . esc_attr( $plugin_safe_name ) . '\');return false;" class="button-primary">' . __('Save', 'plugin-notes') . '</a>
-					<a href="#" onclick="cancel_plugin_note(\'' . esc_attr( $plugin_safe_name ) . '\');return false;" class="button">' . __('Cancel', 'plugin-notes') . '</a>
-					<a href="#" onclick="templatesave_plugin_note(\'' . esc_attr( $plugin_safe_name ) . '\');return false;" class="button-secondary">' . __('Save as template for new notes', 'plugin-notes') . '</a>
-					<span class="waiting" style="display: none;"><img alt="' . __('Loading...', 'plugin-notes') . '" src="images/wpspin_light.gif" /></span>
-				</span>
-				<input type="hidden" name="wp-plugin_note_slug_' . esc_attr( $plugin_safe_name ) . '" value="' . esc_attr( $plugin_file ) . '" />
-				<input type="hidden" name="wp-plugin_note_new_template_' . esc_attr( $plugin_safe_name ) . '" id="wp-plugin_note_new_template_' . esc_attr( $plugin_safe_name ) . '" value="n" />
-			</div>';
+								</select></label>
+								<textarea name="wp-plugin_note_text_' . esc_attr( $note['name'] ) . $attr_key . '" cols="90" rows="10"' . $new_note_class . '>' . esc_textarea( $note['note'] ) . '</textarea>
+								<span class="wp-plugin_note_error error" style="display: none;"></span>
+								<span class="wp-plugin_note_success success" style="display: none;"></span>
+								<span class="wp-plugin_note_edit_actions">
+									<a href="#" onclick="save_plugin_note(\'' . esc_attr( $note['name'] ) . $attr_key . '\');return false;" class="button-primary">' . /*$this->buttons['save_note']*/ /* TRANSLATORS: no need to translate - standard WP core translation will be used */ esc_html__( 'Save' ) . '</a>
+									<a href="#" onclick="cancel_plugin_note(\'' . esc_attr( $note['name'] ) . $attr_key . '\');return false;" class="button">' . /*$this->buttons['cancel_edit']*/ /* TRANSLATORS: no need to translate - standard WP core translation will be used */ esc_html__( 'Cancel' ) . '</a>
+									<a href="#" onclick="templatesave_plugin_note(\'' . esc_attr( $note['name'] ) . $attr_key . '\');return false;" class="button-secondary">' . /*$this->buttons['save_as_template']*/ esc_html__( 'Save as template for new notes', PLUGIN_NOTES_NAME ) . '</a>
+									<span class="waiting" style="display: none;"><img alt="' . esc_attr( /*$this->buttons['title_loading']*/ __( 'Loading...', PLUGIN_NOTES_NAME ) ) . '" src="' . esc_url( admin_url( 'images/wpspin_light.gif' ) ) . '" /></span>
+								</span>
+								<input type="hidden" name="wp-plugin_note_slug_' . esc_attr( $note['name'] ) . $attr_key . '" value="' . esc_attr( $plugin_file ) . '" />
+								<input type="hidden" name="wp-plugin_note_name_' . esc_attr( $note['name'] ) . $attr_key . '" value="' . esc_attr( $note['name'] ) . '" />
+								<input type="hidden" name="wp-plugin_note_key_' . esc_attr( $note['name'] ) . $attr_key . '" value="' . esc_attr( $note['date'] ) . '" />
+								<input type="hidden" name="wp-plugin_note_new_template_' . esc_attr( $note['name'] ) . $attr_key . '" id="wp-plugin_note_new_template_' . esc_attr( $note['name'] ) . $attr_key . '" value="n" />
+							</div>';
 
 			if( $echo === true ) {
-				echo apply_filters( 'plugin_notes_form', $output, $plugin_safe_name );
+				echo apply_filters( 'plugin_notes_form', $output, $note['name'] );
 			}
 			else {
-				return apply_filters( 'plugin_notes_form', $output, $plugin_safe_name );
+				return apply_filters( 'plugin_notes_form', $output, $note['name'] );
 			}
 		}
-		
+
 
 		/**
 		 * Returns a cleaned up version of the plugin name, i.e. it's slug
+		 *
+		 * @param	string	$name	Plugin name
+		 * @return	string
 		 */
 		function _get_plugin_safe_name ( $name ) {
-			return sanitize_title($name);
+			return sanitize_title( $name );
 		}
+
+
+
+
+
+
+		
+		/**
+		 * Validate the saved options.
+		 *
+		 * @since 3.0
+		 * @param array $input with unvalidated options.
+		 * @return array $valid_input with validated options.
+		 */
+/*		function options_validate( $input ) {
+			$valid_input = $input;
+
+			// echo '<pre>'.print_r($input,1).'</pre>';
+			// die;
+
+			if ( !in_array( $input['button_type'], array( 'pf-button.gif', 'button-print-grnw20.png',  'button-print-blu20.png',  'button-print-gry20.png',  'button-print-whgn20.png',  'pf_button_sq_gry_m.png',  'pf_button_sq_gry_l.png',  'pf_button_sq_grn_m.png',  'pf_button_sq_grn_l.png', 'pf-button-big.gif', 'pf-icon-small.gif', 'pf-icon.gif', 'pf-button-both.gif', 'pf-icon-both.gif', 'text-only', 'custom-image') ) )
+				$valid_input['button_type'] = 'pf-button.gif';
+
+			if ( !isset( $input['custom_image'] ) )
+				$valid_input['custom_image'] = '';
+
+			if ( !in_array( $input['show_list'], array( 'all', 'single', 'posts', 'manual') ) )
+				$valid_input['show_list'] = 'all';
+
+			if ( !in_array( $input['content_position'], array( 'none', 'left', 'center', 'right' ) ) )
+				$valid_input['content_position'] = 'left';
+
+			if ( !in_array( $input['content_placement'], array( 'before', 'after' ) ) )
+				$valid_input['content_placement'] = 'after';
+
+			foreach ( array( 'margin_top', 'margin_right', 'margin_bottom', 'margin_left' ) as $opt )
+				$valid_input[$opt] = (int) $input[$opt];
+
+			$valid_input['text_size'] = (int) $input['text_size'];
+
+			if ( !isset($valid_input['text_size']) || 0 == $valid_input['text_size'] ) {
+				$valid_input['text_size'] = 14;
+			} else if ( 25 < $valid_input['text_size'] || 9 > $valid_input['text_size'] ) {
+				$valid_input['text_size'] = 14;
+				add_settings_error( $this->option_name, 'invalid_color', __( 'The text size you entered is invalid, please stay between 9px and 25px', PLUGIN_NOTES_NAME  ) );
+			}
+
+			if ( !isset( $input['text_color'] )) {
+				$valid_input['text_color'] = $this->options['text_color'];
+			} else if ( ! preg_match('/^#[a-f0-9]{3,6}$/i', $input['text_color'] ) ) {
+				// Revert to previous setting and throw error.
+				$valid_input['text_color'] = $this->options['text_color'];
+				add_settings_error( $this->option_name, 'invalid_color', __( 'The color you entered is not valid, it must be a valid hexadecimal RGB font color.', PLUGIN_NOTES_NAME  ) );
+			}
+
+			$valid_input['db_version'] = $this->db_version;
+
+			return $valid_input;
+		}
+*/
+
+  		function validate_options( $received ) {
+		}
+
+
+
+		function _validate_note_array( $note ) {
+//			$note['text'] = $this->_validate_note_text( $note['text'] );
+//			$note['color'] = $this->_validate_note_color( $note['color'] );
+
+//			return $note;
+		}
+
+		
+		/**
+		 * Validate input for note text and note template
+		 *
+		 * @param	string	$note_text
+		 * @return	string
+		 */
+		function _validate_note_text( $note_text = null ) {
+			$note_text = stripslashes( trim( $note_text ) );
+			// @todo Do some replacements which aren't meant to change live?
+			if( !is_null( $note_text ) && !empty( $note_text ) )
+				return wp_kses( $note_text, $this->allowed_tags );
+			else
+				return '';
+		}
+
+		/**
+		 * Validate input for note color
+		 *
+		 * @param	string	$note_color
+		 * @return	string
+		 */
+		function _validate_note_color( $note_color = null ) {
+			if( !is_null( $note_color ) && in_array( $note_color, $this->boxcolors ) )
+				return $note_color;
+			else
+				return $this->defaultcolor;
+		}
+		
+		function _validate_timestamp( $timestamp = null ) {
+			if( !is_null( $timestamp ) && ( intval( $timestamp ) == $timestamp && $timestamp <= PHP_INT_MAX ) )
+				return intval( $timestamp );
+			else
+				return null;
+		}
+
+
+		/**
+		 *
+		 *
+		 * @param	string	$plugin		Either a name or slug for a plugin
+		 * @param	bool	$is_slug	Whether to validate for a plugin slug or a plugin name
+		 *								Defaults to true (=slug)
+		 */
+		function _validate_plugin( $plugin = null, $is_slug = true ) {
+			static $plugins = null;
+
+			if( is_null( $plugins ) ) {
+				$plugins = get_plugins();
+			}
+			
+			$valid = false;
+			
+			if( !is_null( $plugin ) ) {
+				if( $is_slug === true ) {
+					if( array_key_exists( $plugin, $plugins ) === true ) {
+						$valid = true;
+					}
+				}
+				else {
+					foreach( $plugins as $data ) {
+						if( $this->_get_plugin_safe_name( $data['Name'] ) === $plugin ) {
+							$valid = true;
+							break;
+						}
+					}
+				}
+			}
+			return $valid;
+		}
+
 
 
 		/**
 		 * Function that handles editing of the plugin via AJAX
+		 *
+		 * @todo allow for multiple notes per plugin -> add key
+		 * @todo check if localization can be enabled
 		 */
 		function ajax_edit_plugin_note ( ) {
 			global $current_user;
 
+//			if( !defined( 'WPLANG' ) ) { define('WPLANG', get_option( 'WPLANG' ) ); }
+
+			// @todo Localization of notes with AJAX edit does not seem to work....
+//			$this->load_textdomain();
+//			load_textdomain( PLUGIN_NOTES_NAME, PLUGIN_NOTES_DIR . 'languages/' );
+
+
+
 			// Verify nonce
-			if ( ! wp_verify_nonce( $_POST['_nonce'], 'wp-plugin_notes_nonce')) {
-				die( __( 'Don\'t think you\'re supposed to be here...', PLUGIN_NOTES_BASENAME ) );
-				return;
+			if ( ! wp_verify_nonce( $_POST['_nonce'], 'wp-plugin_notes_nonce' ) ) {
+				exit( __( 'Don\'t think you\'re supposed to be here...', PLUGIN_NOTES_NAME ) );
 			}
-		
-			$current_user = wp_get_current_user();
 
-			if ( current_user_can('activate_plugins') ) {
+			if( ! is_user_logged_in() ) {
+				exit( __( 'Your session seems to have expired. You need to log in again.', PLUGIN_NOTES_NAME ) );
+			}
 
-				// Get notes array
-				$notes = $this->_get_notes();
-				$note_text = wp_kses( stripslashes( trim( $_POST['plugin_note'] ) ), $this->allowed_tags );
-				$note_color = ( isset( $_POST['plugin_note_color'] ) && in_array( $_POST['plugin_note_color'], $this->boxcolors ) ? $_POST['plugin_note_color'] : $this->defaultcolor );
-				// TODO: Escape this?
+//			$current_user = wp_get_current_user(); // is this needed and if so, why get the global variable above ?
+			if ( ! is_admin() || current_user_can( $this->required_role ) === false ) {
+				// user can't activate plugins, so throw error
+				exit( __( 'Sorry, you do not have permission to activate plugins.', PLUGIN_NOTES_NAME ) );
+			}
+
+			// Ok, we're still here which means we have an valid user on a valid form
+
+
+// use sanitize_text_field() for text field inputs
+
+			if( $this->_validate_plugin( $_POST['plugin_slug'], true ) === true ) {
 				$plugin = $_POST['plugin_slug'];
-				$plugin_name = esc_html($_POST['plugin_name']);
-
-				$response_data = array();
-				$response_data['slug'] = $plugin;
-
-				$note = array();
-
-				if($note_text) {
-
-					// Are we trying to save the note as a note template ?
-					if( $_POST['plugin_new_template'] === 'y' ) {
-
-						$notes['plugin-notes_template'] = $note_text;
-
-						$response_data = array_merge($response_data, $note);
-						$response_data['action'] = 'save_template';
-					}
-
-					// Ok, no template, save the note to the specific plugin
-					else {
-
-						$date_format = get_option('date_format');
-
-						// setup the note data
-						$note['date'] = date($date_format);
-						$note['user'] = $current_user->ID;
-						$note['note'] = $note_text;
-						$note['color'] = $note_color;
-
-						// Add new note to notes array
-						$notes[$plugin] = $note;
-
-						$response_data = array_merge($response_data, $note);
-						$response_data['action'] = 'edit';
-					}
-
-				} else {
-					// no note sent, so let's delete it
-					if(!empty($notes[$plugin])) unset($notes[$plugin]);
-					$response_data['action'] = 'delete';
-				}
-				
-				// Save the new notes array
-				$this->_set_notes($notes);
-				
-				// Prepare response
-				$response = new WP_Ajax_Response();
-
-				$plugin_note_content = $this->_add_plugin_note($note, array('Name' => $plugin_name), $plugin, false);
-//print 'action = ' . $response_data['action'];
-				$response->add( array(
-					'what' => 'plugin_note',
-					'id' => $plugin,
-					'data' => $plugin_note_content,
-					'action' => ( ($note_text) ? ( ( $_POST['plugin_new_template'] === 'y' ) ? 'save_template' : 'edit' ) : 'delete' ),
-				));
-				$response->send();
-
-				return;
-
-			} else {
-				// user can't edit plugins, so throw error
-				die( __( 'Sorry, you do not have permission to edit plugins.', PLUGIN_NOTES_BASENAME ) );
-				return;
 			}
+			if( $this->_validate_plugin( $_POST['plugin_name'], false ) === true ) {
+				$plugin_name = $_POST['plugin_name'];
+			}
+
+			// will this work for unconverted dates ?
+			if( ( isset( $_POST['plugin_key'] ) && !is_null( $this->_validate_timestamp( $_POST['plugin_key'] ) ) ) ) {
+				$key = $this->_validate_timestamp( $_POST['plugin_key'] );
+			}
+
+			if( !isset( $plugin ) || !isset( $plugin_name ) || !isset( $key ) ) {
+				exit( __( 'Invalid form input received.', PLUGIN_NOTES_NAME ) );
+			}
+
+
+//trigger_error( pr_var( $_POST, 'post vars', true ), E_USER_NOTICE );
+			// Get notes array
+//			$options = $this->_getset_options();
+
+			$note_text = $this->_validate_note_text( $_POST['plugin_note'] );
+
+
+
+			$response_data = array();
+			$response_data['slug'] = $plugin;
+
+			$note = array();
+
+
+			// Are we trying to save the note as a note template ?
+			if( $_POST['plugin_new_template'] === 'y' ) {
+
+				$this->options['plugin-notes_template'] = $note_text;
+
+	//			$response_data = array_merge( $response_data, $note );
+				$response_data['action'] = 'save_template';
+
+				/*
+				 @todo: 2x fix: if the template is cleared, clear the new 'add note'-forms
+				 + if no notes exist for the plugin where they did this action, make sure that the form + add note
+				 link returns
+				 + make sure that succesfull template delete message is shown
+				 */
+				$plugin_note_content = '';
+			}
+			// Ok, no template, but we have a note, save the note to the specific plugin
+			else if( $note_text !== '' ) {
+
+				$plugin_data = $this->_getremember_plugin_data( $plugin );
+//				$date_format = $this->dateformat;
+
+				// setup the note data
+//				$note['date'] = date_i18n( $date_format );
+				$note['date'] = time();
+				$note['user'] = $current_user->ID;
+				$note['note'] = $note_text;
+				$note['color'] = $this->_validate_note_color( $_POST['plugin_note_color'] );
+				$note['pi_version'] = $plugin_data['Version'];
+
+				// Delete the old version so as to reset the timestamp key and removed potential import info
+				if( !empty( $key ) && !empty( $this->options[$plugin][$key] ) ) {
+					unset( $this->options[$plugin][$key] );
+				}
+
+				// Add new note to notes array
+				$this->options[$plugin][$note['date']] = $note;
+
+				$response_data = array_merge( $response_data, $note );
+				$response_data['action'] = 'edit';
+
+				$plugin_note_content = $this->_add_plugin_note( $note, $plugin_data, $plugin, false );
+			}
+			else {
+				// no note sent nor template, so let's delete it
+				if( !empty( $key ) && !empty( $this->options[$plugin][$key] ) ) {
+					unset( $this->options[$plugin][$key] );
+				}
+				$response_data['action'] = 'delete';
+				
+				$plugin_note_content = '';
+			}
+
+			// Save the new notes array
+			$this->options = $this->_getset_options( $this->options );
+
+			// Prepare response
+			$response = new WP_Ajax_Response();
+
+			$plugin_data = ( isset( $plugin_data ) ? $plugin_data : array( 'Name' => $plugin_name ) );
+//			$plugin_note_content = $this->_add_plugin_note( $note, $plugin_data, $plugin, false );
+//print 'action = ' . $response_data['action'];
+			$response->add( array(
+				'what' => 'plugin_note',
+				'id' => $plugin,
+				'data' => $plugin_note_content,
+//				'action' => ( ( $note_text ) ? ( ( $_POST['plugin_new_template'] === 'y' ) ? 'save_template' : 'edit' ) : 'delete' ),
+				'action' => $response_data['action'],
+			));
+			$response->send();
+
+			exit;
+		}
+
+
+		/**
+		 *
+		 * Older is only possible is someone has downgraded a plugin
+		 */
+		function filter_age_pi_version( $pi_version, $real_version ) {
+
+			$version_age = version_compare( $pi_version, $real_version );
+			$version_class = ( ( $version_age === 0 ) ? 'same_version' : ( ( $version_age === -1 ) ? 'older_version' : 'newer_version' ) );
+
+			return '<span class="wp-plugin_note_' . $version_class . '">' . esc_html( $pi_version ) . '</span>';
 		}
 
 
@@ -395,7 +1258,7 @@ if ( !class_exists( 'plugin_notes' ) ) {
 		 * Applies the wp_kses html filter to the note string
 		 *
 		 * @param		string	$pluginnote
-		 * @return		string	altered string $pluginnote
+		 * @return		string
 		 */
 		function filter_kses( $pluginnote ) {
 			return wp_kses( $pluginnote, $this->allowed_tags );
@@ -406,7 +1269,7 @@ if ( !class_exists( 'plugin_notes' ) ) {
 		 * Adds additional line breaks to the note string
 		 *
 		 * @param		string	$pluginnote
-		 * @return		string	altered string $pluginnote
+		 * @return		string
 		 */
 		function filter_breaks( $pluginnote) {
 			return wpautop( $pluginnote );
@@ -417,10 +1280,10 @@ if ( !class_exists( 'plugin_notes' ) ) {
 		 * Applies markdown syntax filter to the note string
 		 *
 		 * @param		string	$pluginnote
-		 * @return		string	altered string $pluginnote
+		 * @return		string
 		 */
 		function filter_markdown( $pluginnote ) {
-			include_once( PLUGIN_NOTES_DIR . 'inc/markdown.php' );
+			include_once( PLUGIN_NOTES_DIR . 'inc/markdown/markdown.php' );
 			
 			return Markdown( $pluginnote );
 		}
@@ -430,56 +1293,67 @@ if ( !class_exists( 'plugin_notes' ) ) {
 		 * Replaces a number of variables in the note string
 		 *
 		 * @param		string	$pluginnote
-		 * @return		string	altered string $pluginnote
+		 * @param		mixed	$plugin_data
+		 * @param		string	$plugin_file
+		 * @return		string
 		 */
-		function filter_variables_replace( $pluginnote, $plugin_data, $plugin_file ) {
+		function filter_variables_replace( $pluginnote, $plugin_data = null, $plugin_file ) {
 
-			if( !isset($plugin_data ) || count( $plugin_data ) === 1 ) {
-				$plugin_data = get_plugin_data( WP_PLUGIN_DIR . '/' . $plugin_file, false, $translate = true );
+			if( preg_match( '/[%][A-Z_]+[%]/u', $pluginnote ) > 0 ) {
+
+				$plugin_data = $this->_getremember_plugin_data( $plugin_file, $plugin_data );
+
+				$find = array(
+					'%NAME%', // Name of the plugin
+					'%PLUGIN_PATH%', // Path to the plugin on this webserver
+					'%URI%', // URI of the plugin website
+					'%WPURI%', // URI of the WordPress repository of the plugin (might not exist)
+					'%WPURI_LINK%', // HTML-string link for the WPURI
+					'%AUTHOR%', // Author name
+					'%AUTHORURI%', // URI of the Author's website
+					'%VERSION%', // Plugin version number
+					'%DESCRIPTION%', // Plugin description
+				);
+				// Available plugindata variables are always set, but sometimes empty
+				$replace = array(
+					esc_html( $plugin_data['Name'] ),
+					esc_html( plugins_url() . '/' . plugin_dir_path( $plugin_file ) ),
+					( !empty( $plugin_data['PluginURI'] ) ? esc_url( $plugin_data['PluginURI'] ) : '' ),
+					esc_url( 'http://wordpress.org/extend/plugins/' . substr( $plugin_file, 0, strpos( $plugin_file, '/') ) ),
+					'<a href="' . esc_url( 'http://wordpress.org/extend/plugins/' . substr( $plugin_file, 0, strpos( $plugin_file, '/') ) ) . '" target="_blank">' . esc_html( $plugin_data['Name'] ) . '</a>',
+					( !empty( $plugin_data['Author'] ) ? esc_html( wp_kses( $plugin_data['Author'], array() ) ) : '' ),
+					( !empty( $plugin_data['AuthorURI'] ) ? esc_html( $plugin_data['AuthorURI'] ) : '' ),
+					( !empty( $plugin_data['Version'] ) ? esc_html( $plugin_data['Version'] ) : '' ),
+					( !empty( $plugin_data['Description'] ) ? esc_html( $plugin_data['Description'] ) : '' ),
+				);
+
+				return str_replace( $find, $replace, $pluginnote );
 			}
-
-			$find = array(
-				'%NAME%',
-				'%PLUGIN_PATH%',
-				'%URI%',
-				'%WPURI%',
-				'%WPURI_LINK%',
-				'%AUTHOR%',
-				'%AUTHORURI%',
-				'%VERSION%',
-				'%DESCRIPTION%',
-			);
-			$replace = array(
-				esc_html($plugin_data['Name']),
-				esc_html( plugins_url() . '/' . plugin_dir_path( $plugin_file ) ),
-				( isset( $plugin_data['PluginURI'] ) ? esc_url( $plugin_data['PluginURI'] ) : '' ),
-				esc_url( 'http://wordpress.org/extend/plugins/' . substr( $plugin_file, 0, strpos( $plugin_file, '/') ) ),
-				'<a href="' . esc_url( 'http://wordpress.org/extend/plugins/' . substr( $plugin_file, 0, strpos( $plugin_file, '/') ) ) . '" target="_blank">' . esc_html($plugin_data['Name']) . '</a>',
-				( isset($plugin_data['Author'] ) ? esc_html( $plugin_data['Author'] ) : '' ),
-				( isset($plugin_data['AuthorURI'] ) ? esc_html( $plugin_data['AuthorURI'] ) : '' ),
-				( isset($plugin_data['Version'] ) ? esc_html( $plugin_data['Version'] ) : '' ),
-				( isset($plugin_data['Description'] ) ? esc_html( $plugin_data['Description'] ) : '' ),
-			);
-
-			return str_replace( $find, $replace, $pluginnote );
+			else {
+				return $pluginnote;
+			}
 		}
 
 
 
-		/* Some sweet function to get/set go!*/
-		function _get_notes() { return get_option($this->notes_option);	}
-		function _set_notes($notes) { return update_option($this->notes_option, $notes); }
-
 	} /* End of class */
 
 
-	add_action( 'admin_init', 'plugin_notes_init' );
-
-	function plugin_notes_init() {
-		/** Let's get the plugin rolling **/
-		// Create new instance of the plugin_notes object
-		global $plugin_notes;
+	/**
+	 * Only load the class when we're in the backend
+	 */
+	if ( is_admin() ) {
+//		add_action( 'init', 'plugin_notes_init' );
 		$plugin_notes = new plugin_notes();
 	}
+
+/*	function plugin_notes_init() {
+		/** Let's get the plugin rolling ** /
+		// Create new instance of the plugin_notes object
+
+		global $plugin_notes; // is this needed ?
+		$plugin_notes = new plugin_notes();
+		return $plugin_notes;
+	}*/
 
 } /* End of class-exists wrapper */

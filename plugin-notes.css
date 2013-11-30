@@ -10,12 +10,21 @@
 	margin-bottom: 5px;
 	width: 500px;
 }
-	.wp-plugin_note {
+
+.plugins td.desc .wp-plugin_note_box p.wp-plugin_note_credits,
+.plugins td.desc .wp-plugin_note_box p.wp-plugin_note_actions {
+	line-height: 1.1em;
+}
+	.wp-plugin_note_text {
 		display: block;
 /*		font-weight: bold;*/
 		margin-bottom: 5px;
 	}
-	.wp-plugin_note_user {
+	.plugins .desc p.wp-plugin_note_credits {
+		color:#666666;
+		font-size:0.85em;
+	}
+/*	.wp-plugin_note_user {
 		font-size:1em;
 		line-height:1.1em;
 	}
@@ -23,14 +32,29 @@
 		color:#666666;
 		font-size:0.85em;
 	}
-	.wp-plugin_note_actions {
+	.wp-plugin_note_version {
+		color:#666666;
+		font-size:0.85em;
+	}
+*/
+	.wp-plugin_note_older_version {
+		color: #FF6600;
+		font-weight: bold;
+	}
+	.wp-plugin_note_same_version {
+	}
+	.wp-plugin_note_newer_version {
+		color: #00008B;
+	}
+
+	.plugins .desc p.wp-plugin_note_actions {
 		font-size:0.85em;
 		display: block;
 	}
-		.wp-plugin_note_actions a.delete {
+		.plugins .desc p.wp-plugin_note_actions a.delete {
 			color: #BC0B0B;
 		}
-	.wp-plugin_note_edit_actions {
+	.plugins .desc p.wp-plugin_note_edit_actions {
 		display: block;
 		margin: 5px 0 5px 0;
 	}
