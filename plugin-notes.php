@@ -173,7 +173,7 @@ class plugin_notes {
 		
 		$current_user = wp_get_current_user();
 		
-		if (current_user_can('edit_plugins')) {
+		if (current_user_can('edit_plugins') || current_user_can('install_plugins') ) {
 			// Get notes array
 			$notes = $this->_get_notes();
 			$note_text = trim(strip_tags( stripslashes( $_POST['plugin_note'] ), '<p><b><i><em><u><strong><a><img>'));
