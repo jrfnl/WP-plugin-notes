@@ -166,6 +166,7 @@ exit;*/
 
 			/* Get the current options set */
 			$this->options = $this->_getset_options();
+pr_var( $this->options, 'options received from db', true );
 
 			/* Check if we have any activation or upgrade actions to do */
 			if( !isset( $this->options[$this->option_keys['version']] ) || $this->options[$this->option_keys['version']] !== PLUGIN_NOTES_VERSION ) {
@@ -416,6 +417,8 @@ pr_var( $this->options, 'Options after upgrade', true );
 
 		/**
 		 * Adds necessary javascript and css files
+		 * @todo also add these for plugin update page in view mode
+		 * @todo add js functions to add the notes to the plugin page via AJAX
 		 */
 		function enqueue_scripts() {
 			global $pagenow;
@@ -730,7 +733,12 @@ pr_var( $this->options, 'Options after upgrade', true );
 		 * and start adding the notes
 		 */
 		function plugin_row_meta( $plugin_meta, $plugin_file, $plugin_data, $context ) {
-
+/*pr_var( array(
+ 'plugin_meta' => $plugin_meta,
+ 'plugin_file'	=> $plugin_file,
+ 'plugin_data'	=> $plugin_data,
+ 'context'		=> $context,
+), 'received vars', true );*/
 			$notes = isset( $this->options[$plugin_file] ) ? $this->options[$plugin_file] : null;
 			$plugin_data = $this->_getremember_plugin_data( $plugin_file, $plugin_data );
 
@@ -1510,6 +1518,9 @@ pr_var( array(
 
 		/**
 		 *
+		 *
+		 * @todo use WP native validate_plugin( $plugin_path) function ?
+		 * http://core.trac.wordpress.org/browser/trunk/wp-admin/includes/plugin.php
 		 *
 		 * @param	string	$plugin		Either a name or slug for a plugin
 		 * @param	bool	$is_slug	Whether to validate for a plugin slug or a plugin name

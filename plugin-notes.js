@@ -1,4 +1,24 @@
 jQuery(document).ready(function($) {
+	
+	/**
+	 * Automagically add the plugin notes to the plugin update page
+	 */
+	jQuery('#update-plugins-table tbody.plugins tr').each(function(){
+		var slug = jQuery(this).children('th input').val();
+		var content = jQuery(this).children('td p');
+		
+		// get the plugin note code via ajax
+//		content.box.after(response.data);
+//		jQuery(this).attr( 'target', '_blank' );
+	});
+	
+/*
+	<tr class='active'>
+		<th scope='row' class='check-column'><input type='checkbox' name='checked[]' value='link-library/link-library.php' /></th>
+		<td><p><strong>Link Library</strong><br />Je hebt versie 5.4.9 ge&#239;nstalleerd. Naar versie 5.6.5 bijwerken. <a href="http://vvehosting.nl/wp-admin/plugin-install.php?tab=plugin-information&#038;plugin=link-library&#038;section=changelog&#038;TB_iframe=true&#038;width=640&#038;height=662" class="thickbox" title="Link Library">Details van versie 5.6.5 bekijken</a>.<br />Compatibel met WordPress 3.4.1: 100% (volgens de auteur)<br />Compatibel met WordPress 3.5: Onbekend</p></td>
+	</tr>
+*/
+
 	attach_handlers();
 });
 
@@ -15,39 +35,45 @@ function attach_handlers() {
 	/**
 	 * Add onclick and ondblclick event triggers
 	 */
-	jQuery('.plugin-version-author-uri').on('dblclick', '.wp-pn_note', function( event ){
+	jQuery('.plugin-version-author-uri, #update-plugins-table tbody.plugins tr td')
+	.on('dblclick', '.wp-pn_note', function( event ){
 		event.preventDefault();
 		edit_plugin_note( event );
 		return false;
 	});
 
-	jQuery('.plugin-version-author-uri').on('click', '.wp-pn_actions a.edit, .wp-pn_actions a.add', function( event ){
+	jQuery('.plugin-version-author-uri, #update-plugins-table tbody.plugins tr td')
+	.on('click', '.wp-pn_actions a.edit, .wp-pn_actions a.add', function( event ){
 		event.preventDefault();
 		edit_plugin_note( event );
 		return false;
 	});
 
-	jQuery('.plugin-version-author-uri').on('click', '.wp-pn_actions a.delete', function( event ){
+	jQuery('.plugin-version-author-uri, #update-plugins-table tbody.plugins tr td')
+	.on('click', '.wp-pn_actions a.delete', function( event ){
 		event.preventDefault();
 		delete_plugin_note( event );
 		return false;
 	});
 
 
-	jQuery('.plugin-version-author-uri').on('click', ".wp-pn_edit_actions input[name='save']", function( event ) {
+	jQuery('.plugin-version-author-uri, #update-plugins-table tbody.plugins tr td')
+	.on('click', ".wp-pn_edit_actions input[name='save']", function( event ) {
 		event.preventDefault();
 		save_plugin_note( event );
 		return false;
 	});
 
-	jQuery('.plugin-version-author-uri').on('click', ".wp-pn_edit_actions input[name='cancel']", function( event ) {
+	jQuery('.plugin-version-author-uri, #update-plugins-table tbody.plugins tr td')
+	.on('click', ".wp-pn_edit_actions input[name='cancel']", function( event ) {
 		event.preventDefault();
 		cancel_plugin_note( event );
 		return false;
 	});
 
 
-	jQuery('.plugin-version-author-uri').on('click', ".wp-pn_edit_actions input[name='templatesave']", function( event ) {
+	jQuery('.plugin-version-author-uri, #update-plugins-table tbody.plugins tr td')
+	.on('click', ".wp-pn_edit_actions input[name='templatesave']", function( event ) {
 		event.preventDefault();
 		templatesave_plugin_note( event );
 		return false;
@@ -75,7 +101,7 @@ function edit_plugin_note( click_event ) {
 	var note_elms = get_plugin_note_elements( click_event );
 
 	// Hide any previous messages, note, show form and focus on textarea
-	note_elms.box.find('.wp-pn_result').stop( false, true ).hide('normal');
+	jQuery('.wp-pn_result').stop( false, true ).hide('normal');
 	note_elms.note.hide('normal');
 	note_elms.form.show('normal');
 	note_elms.form.note.focus();
@@ -84,7 +110,7 @@ function edit_plugin_note( click_event ) {
 function delete_plugin_note( click_event ) {
 	if(confirm(i18n_plugin_notes.confirm_delete)) {
 		var note_elms = get_plugin_note_elements( click_event );
-		note_elms.box.find('.wp-pn_result').stop( false, true ).hide('normal');
+		jQuery('.wp-pn_result').stop( false, true ).hide('normal');
 		note_elms.note.find('.waiting').show();
 		note_elms.form.note.val('');
 		save_plugin_note( click_event );
@@ -94,7 +120,7 @@ function delete_plugin_note( click_event ) {
 function templatesave_plugin_note( click_event ) {
 	if(confirm(i18n_plugin_notes.confirm_template)) {
 		var note_elms = get_plugin_note_elements( click_event );
-		note_elms.box.find('.wp-pn_result').stop( false, true ).hide('normal');
+		jQuery('.wp-pn_result').stop( false, true ).hide('normal');
 		note_elms.form.istemplate.val('y');
 		save_plugin_note( click_event );
 	}
@@ -102,7 +128,7 @@ function templatesave_plugin_note( click_event ) {
 
 function cancel_plugin_note( click_event ) {
 	var note_elms = get_plugin_note_elements( click_event );
-	note_elms.box.find('.wp-pn_result').stop( false, true ).hide('normal');
+	jQuery('.wp-pn_result').stop( false, true ).hide('normal');
 	note_elms.note.show('normal');
 	note_elms.form.hide('normal');
 }
@@ -124,7 +150,7 @@ jQuery(document).ready(function($) {
 */
 function save_plugin_note( click_event ) {
 	var note_elms = get_plugin_note_elements( click_event );
-	note_elms.box.find('.wp-pn_result').stop( false, true ).hide('normal');
+	jQuery('.wp-pn_result').stop( false, true ).hide('normal');
 
 	// Get form values
 	var _nonce = jQuery('input[name=wp-plugin_notes_nonce]').val();

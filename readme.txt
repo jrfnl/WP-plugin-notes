@@ -191,6 +191,7 @@ The plugin is translation ready, though there is not much to translate. Use the 
 * [_New feature_] Added auto-save of version number of the plugin a note applies to
 * [_New feature_] Added import/export functionality
 * [_New feature_] Added purge functionality
+* [_New feature_] Added plugin notes to WP update page via AJAX (experimental)
 //* [_New feature_] Added extra output filter specific for the ajax result output
 //* Added screen options with js show/hide mechanism for notes
 * [_Usability improvement_] Change note date saving from formatted date to timestamp to facilitate changes in the date formatting options and date compare on import of notes

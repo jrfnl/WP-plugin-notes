@@ -136,6 +136,12 @@ if( !class_exists('plugin_notes_import_export') && ( class_exists('plugin_notes'
 		
 		function validate_dateformat() {
 			// no real way to do this
+			
+			/*Possible solution:
+			strip all whitespace, escaped chars and non-letters (numbers, dashes, comma's etc)
+			check if any of the accepted dateformat characters are present
+			*/
+
 		}
 
 		function do_purge() {
@@ -170,6 +176,9 @@ if( !class_exists('plugin_notes_import_export') && ( class_exists('plugin_notes'
 
 		function do_export() {
 			$notes = $this->notes_object->_getset_notes();
+			
+			// Remove private info from notes
+
 			if( !is_serialized( $notes ) ) {
 				$notes = maybe_serialize( $notes );
 			}
@@ -320,6 +329,8 @@ if( !class_exists('plugin_notes_import_export') && ( class_exists('plugin_notes'
 								<label for="wp-plugin_note_custom_dateformat">' . __( 'Custom date format:', PLUGIN_NOTES_NAME ) . '</label>
 								<input name="wp-plugin_note_custom_dateformat" id="wp-plugin_note_custom_date_format" type="text" size="40" value="' . $this->notes_object->dateformat . '" />
 			';
+			
+			Display notes in the update page ? (experimental)
 
 
 			Display order: most recent first (desc)/last(asc)
